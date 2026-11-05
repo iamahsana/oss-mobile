@@ -56,14 +56,38 @@ class ScreenStreamService : Service(), ConnectChecker {
 
     fun attachPreview(textureView: TextureView) {
         pendingPreview = textureView
-        val current = stream
-        if (current != null && !current.isOnPreview) {
+        startPreviewIfReady(textureView)
+    }
+
+    private fun startPreviewIfReady(textureView: TextureView) {
+        val current = stream ?: return
+        if (!textureView.isAvailable || current.isOnPreview) return
+        val surfaceTexture = textureView.surfaceTexture ?: return
+        val width = textureView.width.coerceAtLeast(1)
+        val height = textureView.height.coerceAtLeast(1)
+        try {
+            current.startPreview(surfaceTexture, width, height)
+            sendStatus("Live preview aktif.")
+        } catch (error: Exception) {
+            sendStatus("Preview belum tersedia: ${error.message ?: "coba buka ulang studio"}")
+        }
+    }
+
+    fun updatePreviewSize(width: Int, height: Int) {
+        if (width <= 0 || height <= 0) return
+        try {
+            stream?.getGlInterface()?.setPreviewResolution(width, height)
+        } catch (_: Exception) {
+        }
+    }
+
+    fun detachPreview(textureView: TextureView) {
+        if (pendingPreview === textureView) {
             try {
-                current.startPreview(textureView)
-                sendStatus("Live preview aktif.")
-            } catch (error: Exception) {
-                sendStatus("Preview belum tersedia: ${error.message ?: "coba buka ulang studio"}")
+                if (stream?.isOnPreview == true) stream?.stopPreview()
+            } catch (_: Exception) {
             }
+            pendingPreview = null
         }
     }
 
@@ -137,12 +161,7 @@ class ScreenStreamService : Service(), ConnectChecker {
             output.getGlInterface().setCameraOrientation(0)
             output.changeVideoSource(ScreenSource(applicationContext, projection!!))
             pendingPreview?.let { view ->
-                try {
-                    output.startPreview(view)
-                    sendStatus("Live preview aktif.")
-                } catch (error: Exception) {
-                    sendStatus("Streaming berjalan; preview belum tersedia: ${error.message ?: "unknown"}")
-                }
+                startPreviewIfReady(view)
             }
             val audioLabel = when (audioMode) {
                 AUDIO_MODE_INTERNAL -> "audio internal"
