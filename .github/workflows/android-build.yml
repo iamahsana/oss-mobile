@@ -25,11 +25,15 @@ jobs:
           java-version: "17"
 
       - name: Restore stable OSS signing key
-        if: ${{ secrets.OSS_KEYSTORE_BASE64 != '' }}
         env:
           OSS_KEYSTORE_BASE64: ${{ secrets.OSS_KEYSTORE_BASE64 }}
         run: |
-          printf '%s' "$OSS_KEYSTORE_BASE64" | base64 --decode > app/oss-debug.keystore
+          if [ -n "$OSS_KEYSTORE_BASE64" ]; then
+            printf '%s' "$OSS_KEYSTORE_BASE64" | base64 --decode > app/oss-debug.keystore
+            echo "Stable OSS signing key restored."
+          else
+            echo "Stable signing key is not configured; this build will use a temporary debug key."
+          fi
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
