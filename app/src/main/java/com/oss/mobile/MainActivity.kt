@@ -19,6 +19,7 @@ import android.view.ViewGroup
 import android.view.TextureView
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.RadioButton
 import android.widget.RadioGroup
@@ -149,12 +150,20 @@ class MainActivity : Activity() {
             setTextColor(0xFFB8C7D1.toInt())
         }
 
-        previewView = TextureView(this).apply {
+        val previewContainer = FrameLayout(this).apply {
             setBackgroundColor(0xFF263746.toInt())
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
             ).apply { topMargin = 18; bottomMargin = 12 }
         }
+        previewView = TextureView(this).apply {
+            // TextureView does not support background drawables on Android.
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        }
+        previewContainer.addView(previewView)
         previewLabel = TextView(this).apply {
             text = "Preview akan muncul saat screen capture dimulai"
             textSize = 12f
@@ -256,7 +265,7 @@ class MainActivity : Activity() {
 
         root.addView(title)
         root.addView(subtitle)
-        root.addView(previewView)
+        root.addView(previewContainer)
         root.addView(previewLabel)
         root.addView(sceneHeading)
         root.addView(sceneList)
