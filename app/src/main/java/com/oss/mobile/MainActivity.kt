@@ -84,7 +84,7 @@ class MainActivity : Activity() {
         streamUrl = EditText(this).apply {
             hint = "RTMP URL (rtmp://server/app/stream-key)"
             textSize = 14f
-            singleLine = true
+            setSingleLine(true)
             setTextColor(0xFFFFFFFF.toInt())
             setHintTextColor(0xFF9EADB8.toInt())
             setPadding(12, 8, 12, 8)
