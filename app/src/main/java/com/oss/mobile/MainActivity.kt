@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.view.TextureView
 import android.graphics.drawable.GradientDrawable
@@ -67,11 +68,30 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        applyImmersiveMode()
         try {
             renderStudio()
         } catch (error: Throwable) {
             showStartupError(error)
         }
+    }
+
+    private fun applyImmersiveMode() {
+        window.statusBarColor = 0xFF0B1219.toInt()
+        window.navigationBarColor = 0xFF0B1219.toInt()
+        window.decorView.setBackgroundColor(0xFF0B1219.toInt())
+        @Suppress("DEPRECATION")
+        window.decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            )
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) applyImmersiveMode()
     }
 
     private fun showStartupError(error: Throwable) {
@@ -119,6 +139,7 @@ class MainActivity : Activity() {
 
     override fun onStop() {
         if (serviceBound) {
+            streamService?.detachPreview(previewView)
             unbindService(streamConnection)
             serviceBound = false
             streamService = null
@@ -225,6 +246,26 @@ class MainActivity : Activity() {
         previewContainer.addView(previewLabel, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ))
+        previewView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+            override fun onSurfaceTextureAvailable(surface: android.graphics.SurfaceTexture, width: Int, height: Int) {
+                streamService?.attachPreview(previewView)
+            }
+
+            override fun onSurfaceTextureSizeChanged(surface: android.graphics.SurfaceTexture, width: Int, height: Int) {
+                streamService?.updatePreviewSize(width, height)
+            }
+
+            override fun onSurfaceTextureDestroyed(surface: android.graphics.SurfaceTexture): Boolean {
+                streamService?.detachPreview(previewView)
+                return true
+            }
+
+            override fun onSurfaceTextureUpdated(surface: android.graphics.SurfaceTexture) {
+                if (previewLabel.visibility != View.GONE) {
+                    previewLabel.visibility = View.GONE
+                }
+            }
+        }
         previewCard.addView(previewContainer)
         page.addView(previewCard)
 
@@ -438,6 +479,7 @@ class MainActivity : Activity() {
         if (!serviceBound) {
             serviceBound = bindService(Intent(this, ScreenStreamService::class.java), streamConnection, Context.BIND_AUTO_CREATE)
         }
+        previewLabel.visibility = View.VISIBLE
         previewLabel.text = "Menyiapkan live preview…"
         streamStatus.text = "Permintaan streaming dikirim ke service."
     }
