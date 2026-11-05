@@ -2,10 +2,15 @@ package com.oss.mobile
 
 import android.Manifest
 import android.app.Activity
-import android.content.pm.PackageManager
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
+import android.os.Build
 import android.os.Bundle
+import android.text.InputType
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.Button
@@ -20,7 +25,18 @@ class MainActivity : Activity() {
     private lateinit var sceneList: LinearLayout
     private lateinit var previewLabel: TextView
     private lateinit var streamUrl: EditText
+    private lateinit var streamKey: EditText
     private lateinit var streamStatus: TextView
+    private var statusReceiverRegistered = false
+
+    private val statusReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == ScreenStreamService.ACTION_STATUS) {
+                streamStatus.text = intent.getStringExtra(ScreenStreamService.EXTRA_STATUS)
+                    ?: "Status streaming berubah."
+            }
+        }
+    }
 
     companion object {
         private const val REQUEST_SCREEN_CAPTURE = 4101
@@ -30,6 +46,28 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         renderStudio()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (!statusReceiverRegistered) {
+            val filter = IntentFilter(ScreenStreamService.ACTION_STATUS)
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(statusReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                registerReceiver(statusReceiver, filter)
+            }
+            statusReceiverRegistered = true
+        }
+    }
+
+    override fun onStop() {
+        if (statusReceiverRegistered) {
+            unregisterReceiver(statusReceiver)
+            statusReceiverRegistered = false
+        }
+        super.onStop()
     }
 
     private fun renderStudio() {
@@ -55,7 +93,7 @@ class MainActivity : Activity() {
         }
 
         previewLabel = TextView(this).apply {
-            text = "PREVIEW\n\nScreen capture belum dimulai"
+            text = "PREVIEW\\n\\nScreen capture belum dimulai"
             textSize = 17f
             gravity = Gravity.CENTER
             setTextColor(0xFFEAF2F8.toInt())
@@ -82,8 +120,19 @@ class MainActivity : Activity() {
         }
 
         streamUrl = EditText(this).apply {
-            hint = "RTMP URL (rtmp://server/app/stream-key)"
+            hint = "RTMP Server URL (contoh: rtmp://live.restream.io/live)"
             textSize = 14f
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            setSingleLine(true)
+            setTextColor(0xFFFFFFFF.toInt())
+            setHintTextColor(0xFF9EADB8.toInt())
+            setPadding(12, 8, 12, 8)
+        }
+
+        streamKey = EditText(this).apply {
+            hint = "Stream Key"
+            textSize = 14f
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
             setSingleLine(true)
             setTextColor(0xFFFFFFFF.toInt())
             setHintTextColor(0xFF9EADB8.toInt())
@@ -91,7 +140,7 @@ class MainActivity : Activity() {
         }
 
         streamStatus = TextView(this).apply {
-            text = "Uji awal: screen capture + RTMP. Audio internal dan scene compositor menyusul."
+            text = "Siap. Masukkan RTMP Server URL dan Stream Key. Audio saat ini dari mikrofon."
             textSize = 12f
             setTextColor(0xFFFFD180.toInt())
             setPadding(0, 8, 0, 4)
@@ -105,7 +154,8 @@ class MainActivity : Activity() {
             text = "Stop streaming"
             setOnClickListener {
                 stopService(Intent(this@MainActivity, ScreenStreamService::class.java))
-                streamStatus.text = "Perintah stop dikirim."
+                streamStatus.text = "Streaming dihentikan."
+                previewLabel.text = "PREVIEW\\n\\nScreen capture berhenti"
             }
         }
 
@@ -116,6 +166,7 @@ class MainActivity : Activity() {
         root.addView(sceneList)
         root.addView(addScene)
         root.addView(streamUrl)
+        root.addView(streamKey)
         root.addView(streamStatus)
         root.addView(startStream)
         root.addView(stopStream)
@@ -123,12 +174,22 @@ class MainActivity : Activity() {
         refreshScenes()
     }
 
-    private fun requestScreenCapture() {
-        val endpoint = streamUrl.text.toString().trim()
-        if (!endpoint.startsWith("rtmp://") && !endpoint.startsWith("rtmps://")) {
-            Toast.makeText(this, "Masukkan URL RTMP/RTMPS lengkap terlebih dahulu.", Toast.LENGTH_LONG).show()
-            return
+    private fun buildRtmpEndpoint(): String? {
+        val serverUrl = streamUrl.text.toString().trim().trimEnd('/')
+        val key = streamKey.text.toString().trim()
+        if (!serverUrl.startsWith("rtmp://") && !serverUrl.startsWith("rtmps://")) {
+            Toast.makeText(this, "Masukkan RTMP Server URL yang valid.", Toast.LENGTH_LONG).show()
+            return null
         }
+        if (key.isEmpty()) {
+            Toast.makeText(this, "Masukkan Stream Key dari Restream atau penyedia RTMP.", Toast.LENGTH_LONG).show()
+            return null
+        }
+        return "$serverUrl/$key"
+    }
+
+    private fun requestScreenCapture() {
+        if (buildRtmpEndpoint() == null) return
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_MICROPHONE)
             return
@@ -167,17 +228,18 @@ class MainActivity : Activity() {
             return
         }
 
+        val endpoint = buildRtmpEndpoint() ?: return
         val serviceIntent = Intent(this, ScreenStreamService::class.java).apply {
             putExtra(ScreenStreamService.EXTRA_RESULT_CODE, resultCode)
             putExtra(ScreenStreamService.EXTRA_RESULT_DATA, data)
-            putExtra(ScreenStreamService.EXTRA_ENDPOINT, streamUrl.text.toString().trim())
+            putExtra(ScreenStreamService.EXTRA_ENDPOINT, endpoint)
         }
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent)
         } else {
             startService(serviceIntent)
         }
-        previewLabel.text = "SCREEN CAPTURE\n\nMenyiapkan koneksi RTMP…"
+        previewLabel.text = "SCREEN CAPTURE\\n\\nMenyiapkan koneksi RTMP…"
         streamStatus.text = "Permintaan streaming dikirim ke service."
     }
 
@@ -188,14 +250,14 @@ class MainActivity : Activity() {
                 text = if (index == selectedScene) "✓  $scene" else scene
                 setOnClickListener {
                     selectedScene = index
-                    previewLabel.text = "PREVIEW\n\n$scene\nCompositor akan ditambahkan pada tahap berikutnya."
+                    previewLabel.text = "PREVIEW\\n\\n$scene\\nCompositor akan ditambahkan pada tahap berikutnya."
                     refreshScenes()
                 }
             }
             sceneList.addView(button)
         }
         if (scenes.isNotEmpty()) {
-            previewLabel.text = "PREVIEW\n\n${scenes[selectedScene]}\nBelum ada overlay/source."
+            previewLabel.text = "PREVIEW\\n\\n${scenes[selectedScene]}\\nBelum ada overlay/source."
         }
     }
 }
