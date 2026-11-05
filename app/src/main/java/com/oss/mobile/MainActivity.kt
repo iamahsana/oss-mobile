@@ -16,12 +16,15 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
 
 class MainActivity : Activity() {
     private val scenes = mutableListOf("Scene 1")
     private var selectedScene = 0
+    private var selectedAudioMode = ScreenStreamService.AUDIO_MODE_MICROPHONE
     private lateinit var sceneList: LinearLayout
     private lateinit var previewLabel: TextView
     private lateinit var streamUrl: EditText
@@ -119,6 +122,42 @@ class MainActivity : Activity() {
             }
         }
 
+        val audioHeading = TextView(this).apply {
+            text = "AUDIO SOURCE"
+            textSize = 13f
+            setTextColor(0xFF8FD3FF.toInt())
+            setPadding(0, 10, 0, 2)
+        }
+        val audioModes = RadioGroup(this).apply {
+            orientation = RadioGroup.VERTICAL
+            val microphone = RadioButton(this@MainActivity).apply {
+                id = 1
+                text = "Microphone"
+                setTextColor(0xFFFFFFFF.toInt())
+            }
+            val internal = RadioButton(this@MainActivity).apply {
+                id = 2
+                text = "Internal game audio"
+                setTextColor(0xFFFFFFFF.toInt())
+            }
+            val mixed = RadioButton(this@MainActivity).apply {
+                id = 3
+                text = "Internal audio + microphone"
+                setTextColor(0xFFFFFFFF.toInt())
+            }
+            addView(microphone)
+            addView(internal)
+            addView(mixed)
+            check(1)
+            setOnCheckedChangeListener { _, checkedId ->
+                selectedAudioMode = when (checkedId) {
+                    2 -> ScreenStreamService.AUDIO_MODE_INTERNAL
+                    3 -> ScreenStreamService.AUDIO_MODE_MIX
+                    else -> ScreenStreamService.AUDIO_MODE_MICROPHONE
+                }
+            }
+        }
+
         streamUrl = EditText(this).apply {
             hint = "RTMP Server URL (contoh: rtmp://live.restream.io/live)"
             textSize = 14f
@@ -140,7 +179,7 @@ class MainActivity : Activity() {
         }
 
         streamStatus = TextView(this).apply {
-            text = "Siap. Masukkan RTMP Server URL dan Stream Key. Audio saat ini dari mikrofon."
+            text = "Pilih sumber audio. Audio internal memerlukan Android 10+ dan dapat dibatasi oleh aplikasi/game."
             textSize = 12f
             setTextColor(0xFFFFD180.toInt())
             setPadding(0, 8, 0, 4)
@@ -165,6 +204,8 @@ class MainActivity : Activity() {
         root.addView(sceneHeading)
         root.addView(sceneList)
         root.addView(addScene)
+        root.addView(audioHeading)
+        root.addView(audioModes)
         root.addView(streamUrl)
         root.addView(streamKey)
         root.addView(streamStatus)
@@ -190,6 +231,10 @@ class MainActivity : Activity() {
 
     private fun requestScreenCapture() {
         if (buildRtmpEndpoint() == null) return
+        if (selectedAudioMode != ScreenStreamService.AUDIO_MODE_MICROPHONE && Build.VERSION.SDK_INT < 29) {
+            Toast.makeText(this, "Audio internal memerlukan Android 10 atau lebih baru.", Toast.LENGTH_LONG).show()
+            return
+        }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_MICROPHONE)
             return
@@ -233,6 +278,7 @@ class MainActivity : Activity() {
             putExtra(ScreenStreamService.EXTRA_RESULT_CODE, resultCode)
             putExtra(ScreenStreamService.EXTRA_RESULT_DATA, data)
             putExtra(ScreenStreamService.EXTRA_ENDPOINT, endpoint)
+            putExtra(ScreenStreamService.EXTRA_AUDIO_MODE, selectedAudioMode)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent)
