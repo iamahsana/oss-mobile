@@ -6,6 +6,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.ComponentName
+import android.content.ServiceConnection
+import android.os.IBinder
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -13,6 +16,7 @@ import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
 import android.view.ViewGroup
+import android.view.TextureView
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -27,6 +31,18 @@ class MainActivity : Activity() {
     private var selectedAudioMode = ScreenStreamService.AUDIO_MODE_MICROPHONE
     private lateinit var sceneList: LinearLayout
     private lateinit var previewLabel: TextView
+    private lateinit var previewView: TextureView
+    private var streamService: ScreenStreamService? = null
+    private var serviceBound = false
+    private val streamConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            streamService = (binder as? ScreenStreamService.LocalBinder)?.getService()
+            streamService?.attachPreview(previewView)
+        }
+        override fun onServiceDisconnected(name: ComponentName?) {
+            streamService = null
+        }
+    }
     private lateinit var streamUrl: EditText
     private lateinit var streamKey: EditText
     private lateinit var streamStatus: TextView
@@ -66,6 +82,11 @@ class MainActivity : Activity() {
     }
 
     override fun onStop() {
+        if (serviceBound) {
+            unbindService(streamConnection)
+            serviceBound = false
+            streamService = null
+        }
         if (statusReceiverRegistered) {
             unregisterReceiver(statusReceiver)
             statusReceiverRegistered = false
@@ -95,15 +116,17 @@ class MainActivity : Activity() {
             setTextColor(0xFFB8C7D1.toInt())
         }
 
-        previewLabel = TextView(this).apply {
-            text = "PREVIEW\\n\\nScreen capture belum dimulai"
-            textSize = 17f
-            gravity = Gravity.CENTER
-            setTextColor(0xFFEAF2F8.toInt())
+        previewView = TextureView(this).apply {
             setBackgroundColor(0xFF263746.toInt())
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
             ).apply { topMargin = 18; bottomMargin = 12 }
+        }
+        previewLabel = TextView(this).apply {
+            text = "Preview akan muncul saat screen capture dimulai"
+            textSize = 12f
+            gravity = Gravity.CENTER
+            setTextColor(0xFFEAF2F8.toInt())
         }
 
         val sceneHeading = TextView(this).apply {
@@ -194,12 +217,13 @@ class MainActivity : Activity() {
             setOnClickListener {
                 stopService(Intent(this@MainActivity, ScreenStreamService::class.java))
                 streamStatus.text = "Streaming dihentikan."
-                previewLabel.text = "PREVIEW\\n\\nScreen capture berhenti"
+                previewLabel.text = "Streaming berhenti — preview tidak aktif"
             }
         }
 
         root.addView(title)
         root.addView(subtitle)
+        root.addView(previewView)
         root.addView(previewLabel)
         root.addView(sceneHeading)
         root.addView(sceneList)
@@ -285,7 +309,10 @@ class MainActivity : Activity() {
         } else {
             startService(serviceIntent)
         }
-        previewLabel.text = "SCREEN CAPTURE\\n\\nMenyiapkan koneksi RTMP…"
+        if (!serviceBound) {
+            serviceBound = bindService(Intent(this, ScreenStreamService::class.java), streamConnection, Context.BIND_AUTO_CREATE)
+        }
+        previewLabel.text = "Menyiapkan live preview…"
         streamStatus.text = "Permintaan streaming dikirim ke service."
     }
 
@@ -296,14 +323,14 @@ class MainActivity : Activity() {
                 text = if (index == selectedScene) "✓  $scene" else scene
                 setOnClickListener {
                     selectedScene = index
-                    previewLabel.text = "PREVIEW\\n\\n$scene\\nCompositor akan ditambahkan pada tahap berikutnya."
+                    previewLabel.text = "Scene: $scene — compositor menyusul"
                     refreshScenes()
                 }
             }
             sceneList.addView(button)
         }
         if (scenes.isNotEmpty()) {
-            previewLabel.text = "PREVIEW\\n\\n${scenes[selectedScene]}\\nBelum ada overlay/source."
+            previewLabel.text = "Scene: ${scenes[selectedScene]} — belum ada overlay/source."
         }
     }
 }
