@@ -1,6 +1,8 @@
 package com.oss.mobile
 
+import android.Manifest
 import android.app.Activity
+import android.content.pm.PackageManager
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import android.os.Bundle
@@ -22,6 +24,7 @@ class MainActivity : Activity() {
 
     companion object {
         private const val REQUEST_SCREEN_CAPTURE = 4101
+        private const val REQUEST_MICROPHONE = 4102
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -126,9 +129,33 @@ class MainActivity : Activity() {
             Toast.makeText(this, "Masukkan URL RTMP/RTMPS lengkap terlebih dahulu.", Toast.LENGTH_LONG).show()
             return
         }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_MICROPHONE)
+            return
+        }
+        launchScreenCaptureConsent()
+    }
+
+    private fun launchScreenCaptureConsent() {
         val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         @Suppress("DEPRECATION")
         startActivityForResult(manager.createScreenCaptureIntent(), REQUEST_SCREEN_CAPTURE)
+    }
+
+    @Deprecated("Uses the platform runtime permission callback")
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_MICROPHONE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                launchScreenCaptureConsent()
+            } else {
+                Toast.makeText(this, "Izin mikrofon diperlukan untuk audio pada build uji ini.", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     @Deprecated("Uses the platform screen-capture consent result")
