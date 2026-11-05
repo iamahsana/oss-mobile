@@ -24,12 +24,23 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Restore stable OSS signing key
+        if: ${{ secrets.OSS_KEYSTORE_BASE64 != '' }}
+        env:
+          OSS_KEYSTORE_BASE64: ${{ secrets.OSS_KEYSTORE_BASE64 }}
+        run: |
+          printf '%s' "$OSS_KEYSTORE_BASE64" | base64 --decode > app/oss-debug.keystore
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.13"
 
       - name: Assemble debug APK
+        env:
+          OSS_KEYSTORE_PASSWORD: ${{ secrets.OSS_KEYSTORE_PASSWORD }}
+          OSS_KEY_ALIAS: ${{ secrets.OSS_KEY_ALIAS }}
+          OSS_KEY_PASSWORD: ${{ secrets.OSS_KEY_PASSWORD }}
         run: gradle --no-daemon assembleDebug
 
       - name: Upload APK
