@@ -17,6 +17,8 @@ import android.text.InputType
 import android.view.Gravity
 import android.view.ViewGroup
 import android.view.TextureView
+import android.graphics.drawable.GradientDrawable
+import android.widget.ScrollView
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -128,39 +130,88 @@ class MainActivity : Activity() {
         super.onStop()
     }
 
-    private fun renderStudio() {
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(20, 28, 20, 20)
-            setBackgroundColor(0xFF101820.toInt())
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun roundedBackground(color: Int, radius: Int, strokeColor: Int? = null): GradientDrawable =
+        GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = dp(radius).toFloat()
+            if (strokeColor != null) setStroke(dp(1), strokeColor)
         }
 
-        val title = TextView(this).apply {
-            text = "OSS"
-            textSize = 30f
-            setTextColor(0xFFFFFFFF.toInt())
+    private fun makeText(value: String, size: Float, color: Int, bold: Boolean = false): TextView =
+        TextView(this).apply {
+            text = value
+            textSize = size
+            setTextColor(color)
+            if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
         }
-        val subtitle = TextView(this).apply {
-            text = "Open Stream Software  •  Android Studio"
-            textSize = 14f
-            setTextColor(0xFFB8C7D1.toInt())
+
+    private fun makeCard(): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(16), dp(14), dp(16), dp(14))
+        background = roundedBackground(0xFF17232E.toInt(), 18, 0xFF263746.toInt())
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(12) }
+    }
+
+    private fun styleInput(input: EditText) {
+        input.background = roundedBackground(0xFF0F1922.toInt(), 12, 0xFF314454.toInt())
+        input.setPadding(dp(14), dp(12), dp(14), dp(12))
+        input.textSize = 14f
+    }
+
+    private fun renderStudio() {
+        val page = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(0xFF0B1219.toInt())
         }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            clipToPadding = false
+            setPadding(dp(18), dp(22), dp(18), dp(24))
+            addView(page)
+        }
+
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val brand = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        brand.addView(makeText("OSS", 30f, 0xFFFFFFFF.toInt(), true))
+        brand.addView(makeText("OPEN STREAM SOFTWARE", 10f, 0xFF8FA7B8.toInt(), true))
+        val version = TextView(this).apply {
+            text = "BETA"
+            textSize = 10f
+            setTextColor(0xFF7DE3FF.toInt())
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+            background = roundedBackground(0xFF123244.toInt(), 20)
+        }
+        header.addView(brand, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        header.addView(version)
+        page.addView(header)
+        page.addView(makeText("Your mobile streaming studio", 14f, 0xFF9FB2C1.toInt()))
+
+        val previewCard = makeCard()
+        val previewTop = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        previewTop.addView(makeText("LIVE PREVIEW", 11f, 0xFF9FB2C1.toInt(), true),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        previewTop.addView(makeText("9:16  •  PORTRAIT", 10f, 0xFF62D9F5.toInt(), true))
+        previewCard.addView(previewTop)
 
         val previewContainer = FrameLayout(this).apply {
-            setBackgroundColor(0xFF263746.toInt())
+            background = roundedBackground(0xFF111D27.toInt(), 14, 0xFF314454.toInt())
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
-            ).apply { topMargin = 18; bottomMargin = 12 }
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(220)
+            ).apply { topMargin = dp(12) }
         }
         previewView = TextureView(this).apply {
-            // TextureView does not support background drawables on Android.
             layoutParams = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
             )
         }
         previewContainer.addView(previewView)
@@ -168,47 +219,68 @@ class MainActivity : Activity() {
             text = "Preview akan muncul saat screen capture dimulai"
             textSize = 12f
             gravity = Gravity.CENTER
-            setTextColor(0xFFEAF2F8.toInt())
+            setTextColor(0xFFDCE8F0.toInt())
+            setPadding(dp(18), dp(12), dp(18), dp(12))
         }
+        previewContainer.addView(previewLabel, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        previewCard.addView(previewContainer)
+        page.addView(previewCard)
 
-        val sceneHeading = TextView(this).apply {
-            text = "SCENES"
-            textSize = 13f
-            setTextColor(0xFF8FD3FF.toInt())
+        val sceneCard = makeCard()
+        val sceneHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
-        sceneList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-
+        val sceneTitle = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        sceneTitle.addView(makeText("Scenes", 17f, 0xFFFFFFFF.toInt(), true))
+        sceneTitle.addView(makeText("Atur layout siaran kamu", 12f, 0xFF8FA7B8.toInt()))
+        sceneHeader.addView(sceneTitle, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         val addScene = Button(this).apply {
-            text = "＋  Add scene"
+            text = "+  Add"
+            isAllCaps = false
+            textSize = 12f
+            setTextColor(0xFF07131B.toInt())
+            background = roundedBackground(0xFF61D9F4.toInt(), 12)
+            setPadding(dp(12), 0, dp(12), 0)
             setOnClickListener {
-                scenes.add("Scene ${scenes.size + 1}")
+                scenes.add("Scene " + (scenes.size + 1))
                 selectedScene = scenes.lastIndex
                 refreshScenes()
             }
         }
-
-        val audioHeading = TextView(this).apply {
-            text = "AUDIO SOURCE"
-            textSize = 13f
-            setTextColor(0xFF8FD3FF.toInt())
-            setPadding(0, 10, 0, 2)
+        sceneHeader.addView(addScene)
+        sceneCard.addView(sceneHeader)
+        sceneList = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(8), 0, 0)
         }
+        sceneCard.addView(sceneList)
+        page.addView(sceneCard)
+
+        val audioCard = makeCard()
+        audioCard.addView(makeText("Audio source", 17f, 0xFFFFFFFF.toInt(), true))
+        audioCard.addView(makeText("Pilih suara yang dikirim ke live", 12f, 0xFF8FA7B8.toInt()))
         val audioModes = RadioGroup(this).apply {
             orientation = RadioGroup.VERTICAL
             val microphone = RadioButton(this@MainActivity).apply {
                 id = 1
                 text = "Microphone"
-                setTextColor(0xFFFFFFFF.toInt())
+                setTextColor(0xFFEAF2F8.toInt())
+                buttonTintList = android.content.res.ColorStateList.valueOf(0xFF61D9F4.toInt())
             }
             val internal = RadioButton(this@MainActivity).apply {
                 id = 2
                 text = "Internal game audio"
-                setTextColor(0xFFFFFFFF.toInt())
+                setTextColor(0xFFEAF2F8.toInt())
+                buttonTintList = android.content.res.ColorStateList.valueOf(0xFF61D9F4.toInt())
             }
             val mixed = RadioButton(this@MainActivity).apply {
                 id = 3
                 text = "Internal audio + microphone"
-                setTextColor(0xFFFFFFFF.toInt())
+                setTextColor(0xFFEAF2F8.toInt())
+                buttonTintList = android.content.res.ColorStateList.valueOf(0xFF61D9F4.toInt())
             }
             addView(microphone)
             addView(internal)
@@ -222,62 +294,74 @@ class MainActivity : Activity() {
                 }
             }
         }
+        audioCard.addView(audioModes)
+        page.addView(audioCard)
 
+        val destinationCard = makeCard()
+        destinationCard.addView(makeText("Stream destination", 17f, 0xFFFFFFFF.toInt(), true))
+        destinationCard.addView(makeText("Hubungkan ke server RTMP", 12f, 0xFF8FA7B8.toInt()))
         streamUrl = EditText(this).apply {
-            hint = "RTMP Server URL (contoh: rtmp://live.restream.io/live)"
-            textSize = 14f
+            hint = "RTMP Server URL"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
             setSingleLine(true)
             setTextColor(0xFFFFFFFF.toInt())
-            setHintTextColor(0xFF9EADB8.toInt())
-            setPadding(12, 8, 12, 8)
+            setHintTextColor(0xFF8295A4.toInt())
+            styleInput(this)
         }
-
         streamKey = EditText(this).apply {
             hint = "Stream Key"
-            textSize = 14f
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
             setSingleLine(true)
             setTextColor(0xFFFFFFFF.toInt())
-            setHintTextColor(0xFF9EADB8.toInt())
-            setPadding(12, 8, 12, 8)
+            setHintTextColor(0xFF8295A4.toInt())
+            styleInput(this)
         }
+        destinationCard.addView(streamUrl, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(14) })
+        destinationCard.addView(streamKey, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(10) })
+        page.addView(destinationCard)
 
-        streamStatus = TextView(this).apply {
-            text = "Pilih sumber audio. Audio internal memerlukan Android 10+ dan dapat dibatasi oleh aplikasi/game."
-            textSize = 12f
-            setTextColor(0xFFFFD180.toInt())
-            setPadding(0, 8, 0, 4)
+        streamStatus = makeText(
+            "Audio internal memerlukan Android 10+ dan dapat dibatasi oleh aplikasi/game.",
+            12f, 0xFFFFD180.toInt()
+        )
+        streamStatus.setPadding(dp(4), dp(12), dp(4), dp(8))
+        page.addView(streamStatus)
+
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
-
         val startStream = Button(this).apply {
-            text = "Start screen stream"
+            text = "●  Go Live"
+            isAllCaps = false
+            textSize = 15f
+            setTextColor(0xFF06151C.toInt())
+            background = roundedBackground(0xFF61D9F4.toInt(), 14)
             setOnClickListener { requestScreenCapture() }
         }
         val stopStream = Button(this).apply {
-            text = "Stop streaming"
+            text = "Stop"
+            isAllCaps = false
+            textSize = 14f
+            setTextColor(0xFFFFD9DE.toInt())
+            background = roundedBackground(0xFF40232B.toInt(), 14)
             setOnClickListener {
                 stopService(Intent(this@MainActivity, ScreenStreamService::class.java))
                 streamStatus.text = "Streaming dihentikan."
                 previewLabel.text = "Streaming berhenti — preview tidak aktif"
             }
         }
+        actions.addView(startStream, LinearLayout.LayoutParams(0, dp(52), 1f).apply {
+            marginEnd = dp(8)
+        })
+        actions.addView(stopStream, LinearLayout.LayoutParams(dp(104), dp(52)))
+        page.addView(actions)
 
-        root.addView(title)
-        root.addView(subtitle)
-        root.addView(previewContainer)
-        root.addView(previewLabel)
-        root.addView(sceneHeading)
-        root.addView(sceneList)
-        root.addView(addScene)
-        root.addView(audioHeading)
-        root.addView(audioModes)
-        root.addView(streamUrl)
-        root.addView(streamKey)
-        root.addView(streamStatus)
-        root.addView(startStream)
-        root.addView(stopStream)
-        setContentView(root)
+        setContentView(scroll)
         refreshScenes()
     }
 
