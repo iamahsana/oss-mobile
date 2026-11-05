@@ -9,6 +9,8 @@ import android.content.pm.ServiceInfo
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.IBinder
 import android.view.TextureView
 import android.widget.Toast
@@ -38,6 +40,8 @@ class ScreenStreamService : Service(), ConnectChecker {
         const val AUDIO_MODE_MIX = "mix"
         const val ACTION_STATUS = "com.oss.mobile.ACTION_STREAM_STATUS"
         const val ACTION_STOP = "com.oss.mobile.ACTION_STOP"
+        const val ACTION_CAPTURE_VISIBILITY = "com.oss.mobile.ACTION_CAPTURE_VISIBILITY"
+        const val EXTRA_CAPTURE_VISIBLE = "capture_visible"
         const val EXTRA_STATUS = "stream_status"
         private const val CHANNEL_ID = "oss_screen_stream"
         private const val NOTIFICATION_ID = 41
@@ -45,7 +49,11 @@ class ScreenStreamService : Service(), ConnectChecker {
 
     private var stream: GenericStream? = null
     private var projection: MediaProjection? = null
+    private var projectionCallback: MediaProjection.Callback? = null
+    private var capturedContentVisible = false
     private var pendingPreview: TextureView? = null
+
+    fun isCapturedContentVisible(): Boolean = capturedContentVisible
 
     inner class LocalBinder : android.os.Binder() {
         fun getService(): ScreenStreamService = this@ScreenStreamService
@@ -124,6 +132,21 @@ class ScreenStreamService : Service(), ConnectChecker {
             val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             projection = manager.getMediaProjection(resultCode, resultData)
                 ?: throw IllegalStateException("MediaProjection tidak tersedia")
+            capturedContentVisible = false
+            if (Build.VERSION.SDK_INT >= 34) {
+                val callback = object : MediaProjection.Callback() {
+                    override fun onCapturedContentVisibilityChanged(isVisible: Boolean) {
+                        capturedContentVisible = isVisible
+                        val visibilityIntent = Intent(ACTION_CAPTURE_VISIBILITY).apply {
+                            setPackage(packageName)
+                            putExtra(EXTRA_CAPTURE_VISIBLE, isVisible)
+                        }
+                        sendBroadcast(visibilityIntent)
+                    }
+                }
+                projectionCallback = callback
+                projection?.registerCallback(callback, Handler(Looper.getMainLooper()))
+            }
 
             val audioMode = intent.getStringExtra(EXTRA_AUDIO_MODE) ?: AUDIO_MODE_MICROPHONE
             val audioInput = when (audioMode) {
@@ -236,8 +259,7 @@ class ScreenStreamService : Service(), ConnectChecker {
         }
         stream = null
         pendingPreview = null
-        projection?.stop()
-        projection = null
+        releaseProjection()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -254,7 +276,24 @@ class ScreenStreamService : Service(), ConnectChecker {
         } catch (_: Exception) {
         }
         stream = null
-        projection?.stop()
+        releaseProjection()
+    }
+
+    private fun releaseProjection() {
+        val currentProjection = projection
+        val callback = projectionCallback
+        if (currentProjection != null && callback != null) {
+            try {
+                currentProjection.unregisterCallback(callback)
+            } catch (_: Exception) {
+            }
+        }
+        projectionCallback = null
+        capturedContentVisible = false
+        try {
+            currentProjection?.stop()
+        } catch (_: Exception) {
+        }
         projection = null
     }
 
