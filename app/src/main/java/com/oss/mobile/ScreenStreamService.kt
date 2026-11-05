@@ -37,6 +37,7 @@ class ScreenStreamService : Service(), ConnectChecker {
         const val AUDIO_MODE_INTERNAL = "internal"
         const val AUDIO_MODE_MIX = "mix"
         const val ACTION_STATUS = "com.oss.mobile.ACTION_STREAM_STATUS"
+        const val ACTION_STOP = "com.oss.mobile.ACTION_STOP"
         const val EXTRA_STATUS = "stream_status"
         private const val CHANNEL_ID = "oss_screen_stream"
         private const val NOTIFICATION_ID = 41
@@ -74,6 +75,13 @@ class ScreenStreamService : Service(), ConnectChecker {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent == null) {
             stopSelf()
+            return START_NOT_STICKY
+        }
+
+        if (intent.action == ACTION_STOP) {
+            sendStatus("Menghentikan streaming…")
+            stopStreaming()
+            sendStatus("Streaming dihentikan.")
             return START_NOT_STICKY
         }
 
@@ -125,6 +133,8 @@ class ScreenStreamService : Service(), ConnectChecker {
             if (!prepared) throw IllegalStateException("Encoder tidak berhasil disiapkan")
 
             output.getGlInterface().setForceRender(true, 15)
+            // ScreenSource manages display rotation itself; do not apply camera rotation.
+            output.getGlInterface().setCameraOrientation(0)
             output.changeVideoSource(ScreenSource(applicationContext, projection!!))
             pendingPreview?.let { view ->
                 try {
