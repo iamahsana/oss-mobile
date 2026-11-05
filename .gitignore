@@ -8,3 +8,6 @@ local.properties
 .externalNativeBuild/
 .cxx/
 captures/
+
+# Never commit the private OSS signing key.
+app/oss-debug.keystore
