@@ -350,7 +350,7 @@ class MainActivity : Activity() {
             setTextColor(0xFFFFD9DE.toInt())
             background = roundedBackground(0xFF40232B.toInt(), 14)
             setOnClickListener {
-                stopService(Intent(this@MainActivity, ScreenStreamService::class.java))
+                startService(Intent(this@MainActivity, ScreenStreamService::class.java).setAction(ScreenStreamService.ACTION_STOP))
                 streamStatus.text = "Streaming dihentikan."
                 previewLabel.text = "Streaming berhenti — preview tidak aktif"
             }
