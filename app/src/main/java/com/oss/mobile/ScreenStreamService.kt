@@ -12,7 +12,9 @@ import android.os.Build
 import android.os.IBinder
 import android.widget.Toast
 import com.pedro.common.ConnectChecker
+import com.pedro.encoder.input.sources.audio.InternalAudioSource
 import com.pedro.encoder.input.sources.audio.MicrophoneSource
+import com.pedro.encoder.input.sources.audio.MixAudioSource
 import com.pedro.encoder.input.sources.video.NoVideoSource
 import com.pedro.encoder.input.sources.video.ScreenSource
 import com.pedro.library.generic.GenericStream
@@ -29,6 +31,10 @@ class ScreenStreamService : Service(), ConnectChecker {
         const val EXTRA_RESULT_CODE = "projection_result_code"
         const val EXTRA_RESULT_DATA = "projection_result_data"
         const val EXTRA_ENDPOINT = "stream_endpoint"
+        const val EXTRA_AUDIO_MODE = "audio_mode"
+        const val AUDIO_MODE_MICROPHONE = "microphone"
+        const val AUDIO_MODE_INTERNAL = "internal"
+        const val AUDIO_MODE_MIX = "mix"
         const val ACTION_STATUS = "com.oss.mobile.ACTION_STREAM_STATUS"
         const val EXTRA_STATUS = "stream_status"
         private const val CHANNEL_ID = "oss_screen_stream"
@@ -67,16 +73,45 @@ class ScreenStreamService : Service(), ConnectChecker {
             projection = manager.getMediaProjection(resultCode, resultData)
                 ?: throw IllegalStateException("MediaProjection tidak tersedia")
 
-            val output = GenericStream(this, this, NoVideoSource(), MicrophoneSource())
+            val audioMode = intent.getStringExtra(EXTRA_AUDIO_MODE) ?: AUDIO_MODE_MICROPHONE
+            val audioInput = when (audioMode) {
+                AUDIO_MODE_INTERNAL -> {
+                    if (Build.VERSION.SDK_INT < 29) {
+                        throw IllegalStateException("Audio internal memerlukan Android 10+")
+                    }
+                    InternalAudioSource(projection!!)
+                }
+                AUDIO_MODE_MIX -> {
+                    if (Build.VERSION.SDK_INT < 29) {
+                        throw IllegalStateException("Audio internal memerlukan Android 10+")
+                    }
+                    MixAudioSource(projection!!)
+                }
+                else -> MicrophoneSource()
+            }
+
+            val output = GenericStream(this, this, NoVideoSource(), audioInput)
             stream = output
+            val isMixedAudio = audioMode == AUDIO_MODE_MIX
             val prepared = output.prepareVideo(720, 1280, 1_800_000, rotation = 0) &&
-                output.prepareAudio(32000, true, 96000)
+                output.prepareAudio(
+                    32000,
+                    true,
+                    96000,
+                    echoCanceler = isMixedAudio,
+                    noiseSuppressor = isMixedAudio
+                )
 
             if (!prepared) throw IllegalStateException("Encoder tidak berhasil disiapkan")
 
             output.getGlInterface().setForceRender(true, 15)
             output.changeVideoSource(ScreenSource(applicationContext, projection!!))
-            sendStatus("Mengirim stream ke server RTMP…")
+            val audioLabel = when (audioMode) {
+                AUDIO_MODE_INTERNAL -> "audio internal"
+                AUDIO_MODE_MIX -> "audio internal + mikrofon"
+                else -> "mikrofon"
+            }
+            sendStatus("Mengirim stream ke server RTMP dengan sumber $audioLabel…")
             output.startStream(endpoint)
         } catch (error: Exception) {
             Toast.makeText(this, "OSS: ${error.message ?: "Gagal memulai streaming"}", Toast.LENGTH_LONG).show()
