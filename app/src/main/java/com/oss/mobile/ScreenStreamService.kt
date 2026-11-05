@@ -10,6 +10,7 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.IBinder
+import android.view.TextureView
 import android.widget.Toast
 import com.pedro.common.ConnectChecker
 import com.pedro.encoder.input.sources.audio.InternalAudioSource
@@ -43,8 +44,27 @@ class ScreenStreamService : Service(), ConnectChecker {
 
     private var stream: GenericStream? = null
     private var projection: MediaProjection? = null
+    private var pendingPreview: TextureView? = null
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    inner class LocalBinder : android.os.Binder() {
+        fun getService(): ScreenStreamService = this@ScreenStreamService
+    }
+    private val binder = LocalBinder()
+
+    override fun onBind(intent: Intent?): IBinder = binder
+
+    fun attachPreview(textureView: TextureView) {
+        pendingPreview = textureView
+        val current = stream
+        if (current != null && !current.isOnPreview) {
+            try {
+                current.startPreview(textureView)
+                sendStatus("Live preview aktif.")
+            } catch (error: Exception) {
+                sendStatus("Preview belum tersedia: ${error.message ?: "coba buka ulang studio"}")
+            }
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -106,6 +126,14 @@ class ScreenStreamService : Service(), ConnectChecker {
 
             output.getGlInterface().setForceRender(true, 15)
             output.changeVideoSource(ScreenSource(applicationContext, projection!!))
+            pendingPreview?.let { view ->
+                try {
+                    output.startPreview(view)
+                    sendStatus("Live preview aktif.")
+                } catch (error: Exception) {
+                    sendStatus("Streaming berjalan; preview belum tersedia: ${error.message ?: "unknown"}")
+                }
+            }
             val audioLabel = when (audioMode) {
                 AUDIO_MODE_INTERNAL -> "audio internal"
                 AUDIO_MODE_MIX -> "audio internal + mikrofon"
@@ -178,6 +206,7 @@ class ScreenStreamService : Service(), ConnectChecker {
             // Best-effort cleanup after partial initialization.
         }
         stream = null
+        pendingPreview = null
         projection?.stop()
         projection = null
         stopForeground(STOP_FOREGROUND_REMOVE)
