@@ -52,8 +52,21 @@ class ScreenStreamService : Service(), ConnectChecker {
     private var projectionCallback: MediaProjection.Callback? = null
     private var capturedContentVisible = false
     private var pendingPreview: TextureView? = null
+    private var overlayCompositor: OverlayCompositor? = null
 
     fun isCapturedContentVisible(): Boolean = capturedContentVisible
+
+    /**
+     * Apply visual layers provided by installed source modules to the encoded stream.
+     * The compositor is initialized only after the video encoder is prepared.
+     */
+    fun setCompositorLayers(layers: List<CompositorLayer>) {
+        overlayCompositor?.setLayers(layers)
+    }
+
+    fun clearCompositorLayers() {
+        overlayCompositor?.clear()
+    }
 
     inner class LocalBinder : android.os.Binder() {
         fun getService(): ScreenStreamService = this@ScreenStreamService
@@ -179,6 +192,7 @@ class ScreenStreamService : Service(), ConnectChecker {
 
             if (!prepared) throw IllegalStateException("Encoder tidak berhasil disiapkan")
 
+            overlayCompositor = OverlayCompositor(output.getGlInterface())
             output.getGlInterface().setForceRender(true, 15)
             // ScreenSource manages display rotation itself; do not apply camera rotation.
             output.getGlInterface().setCameraOrientation(0)
@@ -252,6 +266,8 @@ class ScreenStreamService : Service(), ConnectChecker {
 
     private fun stopStreaming() {
         try {
+            overlayCompositor?.clear()
+            overlayCompositor = null
             stream?.stopStream()
             stream?.release()
         } catch (_: Exception) {
@@ -271,6 +287,8 @@ class ScreenStreamService : Service(), ConnectChecker {
 
     private fun stopStreamingResources() {
         try {
+            overlayCompositor?.clear()
+            overlayCompositor = null
             stream?.stopStream()
             stream?.release()
         } catch (_: Exception) {
