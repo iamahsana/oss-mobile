@@ -530,7 +530,7 @@ class MainActivity : Activity() {
         val saved = prefs.getString("scene_names", null)
         scenes.clear()
         if (!saved.isNullOrBlank()) {
-            scenes.addAll(saved.split("\\n").map { it.trim() }.filter { it.isNotEmpty() })
+            scenes.addAll(saved.split("\n").map { it.trim() }.filter { it.isNotEmpty() })
         }
         if (scenes.isEmpty()) scenes.add("Scene 1")
         selectedScene = prefs.getInt("selected_scene", 0).coerceIn(0, scenes.lastIndex)
@@ -538,7 +538,7 @@ class MainActivity : Activity() {
 
     private fun saveScenes() {
         getSharedPreferences("oss_studio", MODE_PRIVATE).edit()
-            .putString("scene_names", scenes.joinToString("\\n"))
+            .putString("scene_names", scenes.joinToString("\n"))
             .putInt("selected_scene", selectedScene)
             .apply()
     }
@@ -562,7 +562,7 @@ class MainActivity : Activity() {
                             .setView(nameInput)
                             .setNegativeButton("Cancel", null)
                             .setPositiveButton("Save") { _, _ ->
-                                val newName = nameInput.text.toString().trim().replace("\\n", " ")
+                                val newName = nameInput.text.toString().trim().replace("\n", " ")
                                 if (newName.isNotEmpty()) {
                                     scenes[index] = newName
                                     saveScenes()
