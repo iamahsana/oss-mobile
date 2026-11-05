@@ -64,7 +64,40 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        renderStudio()
+        try {
+            renderStudio()
+        } catch (error: Throwable) {
+            showStartupError(error)
+        }
+    }
+
+    private fun showStartupError(error: Throwable) {
+        val message = buildString {
+            append("OSS gagal membuka Studio.\n\n")
+            append(error.javaClass.simpleName)
+            append(": ")
+            append(error.message ?: "Tidak ada detail error")
+            append("\n\n")
+            append(error.stackTraceToString().take(5000))
+        }
+        val screen = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(28, 36, 28, 28)
+            setBackgroundColor(0xFF101820.toInt())
+        }
+        val title = TextView(this).apply {
+            text = "OSS — Startup error"
+            textSize = 22f
+            setTextColor(0xFFFFFFFF.toInt())
+        }
+        val details = TextView(this).apply {
+            text = message
+            textSize = 13f
+            setTextColor(0xFFFFD180.toInt())
+        }
+        screen.addView(title)
+        screen.addView(details)
+        setContentView(screen)
     }
 
     override fun onStart() {
