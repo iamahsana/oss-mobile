@@ -29,6 +29,8 @@ class ScreenStreamService : Service(), ConnectChecker {
         const val EXTRA_RESULT_CODE = "projection_result_code"
         const val EXTRA_RESULT_DATA = "projection_result_data"
         const val EXTRA_ENDPOINT = "stream_endpoint"
+        const val ACTION_STATUS = "com.oss.mobile.ACTION_STREAM_STATUS"
+        const val EXTRA_STATUS = "stream_status"
         private const val CHANNEL_ID = "oss_screen_stream"
         private const val NOTIFICATION_ID = 41
     }
@@ -60,6 +62,7 @@ class ScreenStreamService : Service(), ConnectChecker {
 
         try {
             startAsForeground()
+            sendStatus("Menyiapkan encoder dan screen capture…")
             val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             projection = manager.getMediaProjection(resultCode, resultData)
                 ?: throw IllegalStateException("MediaProjection tidak tersedia")
@@ -73,6 +76,7 @@ class ScreenStreamService : Service(), ConnectChecker {
 
             output.getGlInterface().setForceRender(true, 15)
             output.changeVideoSource(ScreenSource(applicationContext, projection!!))
+            sendStatus("Mengirim stream ke server RTMP…")
             output.startStream(endpoint)
         } catch (error: Exception) {
             Toast.makeText(this, "OSS: ${error.message ?: "Gagal memulai streaming"}", Toast.LENGTH_LONG).show()
@@ -163,14 +167,17 @@ class ScreenStreamService : Service(), ConnectChecker {
 
     override fun onConnectionStarted(url: String) {
         updateNotification("Menghubungkan ke server RTMP…")
+        sendStatus("Menghubungkan ke server RTMP…")
     }
 
     override fun onConnectionSuccess() {
         updateNotification("Terhubung — streaming aktif")
+        sendStatus("TERHUBUNG — streaming aktif ke RTMP.")
     }
 
     override fun onConnectionFailed(reason: String) {
         updateNotification("Koneksi gagal: $reason")
+        sendStatus("Koneksi gagal: $reason")
         stopStreaming()
     }
 
@@ -178,15 +185,26 @@ class ScreenStreamService : Service(), ConnectChecker {
 
     override fun onDisconnect() {
         updateNotification("Streaming terputus")
+        sendStatus("Streaming terputus.")
     }
 
     override fun onAuthError() {
         updateNotification("Autentikasi server gagal")
+        sendStatus("Autentikasi gagal. Periksa Stream Key dan RTMP URL.")
         stopStreaming()
     }
 
     override fun onAuthSuccess() {
         updateNotification("Autentikasi berhasil")
+        sendStatus("Autentikasi server berhasil.")
+    }
+
+    private fun sendStatus(message: String) {
+        val statusIntent = Intent(ACTION_STATUS).apply {
+            setPackage(packageName)
+            putExtra(EXTRA_STATUS, message)
+        }
+        sendBroadcast(statusIntent)
     }
 
     private fun updateNotification(message: String) {
