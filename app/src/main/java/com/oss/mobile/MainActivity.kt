@@ -2,6 +2,7 @@ package com.oss.mobile
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -30,7 +31,7 @@ import android.widget.TextView
 import android.widget.Toast
 
 class MainActivity : Activity() {
-    private val scenes = mutableListOf("Scene 1")
+    private val scenes = mutableListOf<String>()
     private var selectedScene = 0
     private var selectedAudioMode = ScreenStreamService.AUDIO_MODE_MICROPHONE
     private lateinit var sceneList: LinearLayout
@@ -76,6 +77,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         applyImmersiveMode()
         try {
+            loadScenes()
             renderStudio()
         } catch (error: Throwable) {
             showStartupError(error)
@@ -328,6 +330,7 @@ class MainActivity : Activity() {
             setOnClickListener {
                 scenes.add("Scene " + (scenes.size + 1))
                 selectedScene = scenes.lastIndex
+                saveScenes()
                 refreshScenes()
             }
         }
@@ -522,21 +525,100 @@ class MainActivity : Activity() {
         streamStatus.text = "Permintaan streaming dikirim ke service."
     }
 
+    private fun loadScenes() {
+        val prefs = getSharedPreferences("oss_studio", MODE_PRIVATE)
+        val saved = prefs.getString("scene_names", null)
+        scenes.clear()
+        if (!saved.isNullOrBlank()) {
+            scenes.addAll(saved.split("\\n").map { it.trim() }.filter { it.isNotEmpty() })
+        }
+        if (scenes.isEmpty()) scenes.add("Scene 1")
+        selectedScene = prefs.getInt("selected_scene", 0).coerceIn(0, scenes.lastIndex)
+    }
+
+    private fun saveScenes() {
+        getSharedPreferences("oss_studio", MODE_PRIVATE).edit()
+            .putString("scene_names", scenes.joinToString("\\n"))
+            .putInt("selected_scene", selectedScene)
+            .apply()
+    }
+
+    private fun showSceneOptions(index: Int) {
+        if (index !in scenes.indices) return
+        val options = arrayOf("Rename scene", "Delete scene")
+        AlertDialog.Builder(this)
+            .setTitle(scenes[index])
+            .setItems(options) { _, choice ->
+                when (choice) {
+                    0 -> {
+                        val nameInput = EditText(this).apply {
+                            setText(scenes[index])
+                            setSelection(text.length)
+                            hint = "Nama scene"
+                            setSingleLine(true)
+                        }
+                        AlertDialog.Builder(this)
+                            .setTitle("Rename scene")
+                            .setView(nameInput)
+                            .setNegativeButton("Cancel", null)
+                            .setPositiveButton("Save") { _, _ ->
+                                val newName = nameInput.text.toString().trim().replace("\\n", " ")
+                                if (newName.isNotEmpty()) {
+                                    scenes[index] = newName
+                                    saveScenes()
+                                    refreshScenes()
+                                } else {
+                                    Toast.makeText(this, "Nama scene tidak boleh kosong.", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            .show()
+                    }
+                    1 -> {
+                        if (scenes.size <= 1) {
+                            Toast.makeText(this, "Minimal harus ada satu scene.", Toast.LENGTH_SHORT).show()
+                            return@setItems
+                        }
+                        AlertDialog.Builder(this)
+                            .setTitle("Delete scene?")
+                            .setMessage("Scene \"${scenes[index]}\" akan dihapus.")
+                            .setNegativeButton("Cancel", null)
+                            .setPositiveButton("Delete") { _, _ ->
+                                scenes.removeAt(index)
+                                selectedScene = when {
+                                    selectedScene > index -> selectedScene - 1
+                                    selectedScene == index -> (index - 1).coerceAtLeast(0)
+                                    else -> selectedScene
+                                }
+                                saveScenes()
+                                refreshScenes()
+                            }
+                            .show()
+                    }
+                }
+            }
+            .show()
+    }
+
     private fun refreshScenes() {
         sceneList.removeAllViews()
         scenes.forEachIndexed { index, scene ->
             val button = Button(this).apply {
                 text = if (index == selectedScene) "✓  $scene" else scene
+                isAllCaps = false
                 setOnClickListener {
                     selectedScene = index
-                    previewLabel.text = "Scene: $scene — compositor menyusul"
+                    saveScenes()
                     refreshScenes()
+                }
+                setOnLongClickListener {
+                    showSceneOptions(index)
+                    true
                 }
             }
             sceneList.addView(button)
         }
         if (scenes.isNotEmpty()) {
-            previewLabel.text = "Scene: ${scenes[selectedScene]} — belum ada overlay/source."
+            previewLabel.text = "Scene dipilih: ${scenes[selectedScene]} — pengaturan scene tersimpan; compositor visual menyusul."
         }
     }
 }
