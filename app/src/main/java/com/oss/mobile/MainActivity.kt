@@ -41,7 +41,7 @@ class MainActivity : Activity() {
     private val streamConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             streamService = (binder as? ScreenStreamService.LocalBinder)?.getService()
-            streamService?.attachPreview(previewView)
+            applyCapturedContentVisibility(streamService?.isCapturedContentVisible() == true)
         }
         override fun onServiceDisconnected(name: ComponentName?) {
             streamService = null
@@ -54,9 +54,15 @@ class MainActivity : Activity() {
 
     private val statusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == ScreenStreamService.ACTION_STATUS) {
-                streamStatus.text = intent.getStringExtra(ScreenStreamService.EXTRA_STATUS)
-                    ?: "Status streaming berubah."
+            when (intent?.action) {
+                ScreenStreamService.ACTION_STATUS -> {
+                    streamStatus.text = intent.getStringExtra(ScreenStreamService.EXTRA_STATUS)
+                        ?: "Status streaming berubah."
+                }
+                ScreenStreamService.ACTION_CAPTURE_VISIBILITY -> {
+                    val visible = intent.getBooleanExtra(ScreenStreamService.EXTRA_CAPTURE_VISIBLE, false)
+                    applyCapturedContentVisibility(visible)
+                }
             }
         }
     }
@@ -126,7 +132,10 @@ class MainActivity : Activity() {
     override fun onStart() {
         super.onStart()
         if (!statusReceiverRegistered) {
-            val filter = IntentFilter(ScreenStreamService.ACTION_STATUS)
+            val filter = IntentFilter().apply {
+                addAction(ScreenStreamService.ACTION_STATUS)
+                addAction(ScreenStreamService.ACTION_CAPTURE_VISIBILITY)
+            }
             if (Build.VERSION.SDK_INT >= 33) {
                 registerReceiver(statusReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
             } else {
@@ -134,6 +143,32 @@ class MainActivity : Activity() {
                 registerReceiver(statusReceiver, filter)
             }
             statusReceiverRegistered = true
+        }
+        bindStreamService()
+    }
+
+    private fun bindStreamService() {
+        if (!serviceBound) {
+            serviceBound = bindService(
+                Intent(this, ScreenStreamService::class.java),
+                streamConnection,
+                Context.BIND_AUTO_CREATE
+            )
+        }
+    }
+
+    private fun applyCapturedContentVisibility(visible: Boolean) {
+        if (!::previewView.isInitialized || !::previewLabel.isInitialized) return
+        if (visible) {
+            streamService?.detachPreview(previewView)
+            previewView.visibility = View.INVISIBLE
+            previewLabel.visibility = View.VISIBLE
+            previewLabel.text = "Preview disembunyikan sementara agar tidak menangkap dirinya sendiri."
+        } else {
+            previewView.visibility = View.VISIBLE
+            previewLabel.visibility = View.VISIBLE
+            previewLabel.text = "Menyiapkan live preview…"
+            streamService?.attachPreview(previewView)
         }
     }
 
@@ -248,7 +283,9 @@ class MainActivity : Activity() {
         ))
         previewView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
             override fun onSurfaceTextureAvailable(surface: android.graphics.SurfaceTexture, width: Int, height: Int) {
-                streamService?.attachPreview(previewView)
+                if (streamService?.isCapturedContentVisible() != true) {
+                    streamService?.attachPreview(previewView)
+                }
             }
 
             override fun onSurfaceTextureSizeChanged(surface: android.graphics.SurfaceTexture, width: Int, height: Int) {
@@ -261,7 +298,10 @@ class MainActivity : Activity() {
             }
 
             override fun onSurfaceTextureUpdated(surface: android.graphics.SurfaceTexture) {
-                if (previewLabel.visibility != View.GONE) {
+                if (previewView.visibility == View.VISIBLE &&
+                    streamService?.isCapturedContentVisible() != true &&
+                    previewLabel.visibility != View.GONE
+                ) {
                     previewLabel.visibility = View.GONE
                 }
             }
@@ -476,9 +516,7 @@ class MainActivity : Activity() {
         } else {
             startService(serviceIntent)
         }
-        if (!serviceBound) {
-            serviceBound = bindService(Intent(this, ScreenStreamService::class.java), streamConnection, Context.BIND_AUTO_CREATE)
-        }
+        bindStreamService()
         previewLabel.visibility = View.VISIBLE
         previewLabel.text = "Menyiapkan live preview…"
         streamStatus.text = "Permintaan streaming dikirim ke service."
