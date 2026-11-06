@@ -537,10 +537,12 @@ class MainActivity : Activity() {
 
             val gainLabel = makeText("Volume: 100%", 12f, 0xFFDCE8F0.toInt())
             card.addView(gainLabel)
+            val initialState = service.mixerChannelState(channelId)
             val gain = SeekBar(this).apply {
                 max = 200
-                progress = 100
+                progress = ((initialState?.gain ?: 1f) * 100).toInt().coerceIn(0, 200)
             }
+            gainLabel.text = "Volume: ${gain.progress}%"
             card.addView(gain)
             gain.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -555,7 +557,13 @@ class MainActivity : Activity() {
             card.addView(balanceLabel)
             val balance = SeekBar(this).apply {
                 max = 200
-                progress = 100
+                progress = (((initialState?.balance ?: 0f) * 100).toInt() + 100).coerceIn(0, 200)
+            }
+            val initialBalance = balance.progress - 100
+            balanceLabel.text = when {
+                initialBalance < 0 -> "Balance: L ${-initialBalance}%"
+                initialBalance > 0 -> "Balance: R $initialBalance%"
+                else -> "Balance: Center"
             }
             card.addView(balance)
             balance.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -578,6 +586,7 @@ class MainActivity : Activity() {
             }
             val mute = CheckBox(this).apply {
                 text = "Mute"
+                isChecked = initialState?.muted ?: false
                 setTextColor(0xFFEAF2F8.toInt())
                 buttonTintList = android.content.res.ColorStateList.valueOf(0xFF61D9F4.toInt())
             }
@@ -586,7 +595,7 @@ class MainActivity : Activity() {
             }
             val live = CheckBox(this).apply {
                 text = "LIVE"
-                isChecked = true
+                isChecked = initialState?.toLive ?: true
                 setTextColor(0xFFEAF2F8.toInt())
                 buttonTintList = android.content.res.ColorStateList.valueOf(0xFF61D9F4.toInt())
             }
@@ -630,8 +639,9 @@ class MainActivity : Activity() {
         content.addView(masterLabel)
         val master = SeekBar(this).apply {
             max = 200
-            progress = 100
+            progress = (service.mixerMasterGain() * 100).toInt().coerceIn(0, 200)
         }
+        masterLabel.text = "Master volume: ${master.progress}%"
         content.addView(master)
         master.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
