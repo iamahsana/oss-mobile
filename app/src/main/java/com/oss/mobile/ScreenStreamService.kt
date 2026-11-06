@@ -176,7 +176,7 @@ class ScreenStreamService : Service(), ConnectChecker {
             }
 
             val audioMode = intent.getStringExtra(EXTRA_AUDIO_MODE) ?: AUDIO_MODE_MICROPHONE
-            AudioDiagnostics.add("----- New capture session -----")
+            AudioDiagnostics.beginCaptureSession(audioMode)
             AudioDiagnostics.add("Android SDK=${Build.VERSION.SDK_INT}; selectedMode=$audioMode")
             startAudioRecordingDiagnostics()
             val rawAudioInput = when (audioMode) {
@@ -212,8 +212,12 @@ class ScreenStreamService : Service(), ConnectChecker {
                     32000,
                     true,
                     96000,
-                    echoCanceler = isMixedAudio,
-                    noiseSuppressor = isMixedAudio
+                    // Keep the physical mic path unprocessed while independent playback
+                    // capture is active. Device AEC/NS can aggressively attenuate speech
+                    // when game playback is also present; echo control can be added later
+                    // as an explicit mixer processing stage.
+                    echoCanceler = false,
+                    noiseSuppressor = false
                 )
 
             if (!prepared) throw IllegalStateException("Encoder tidak berhasil disiapkan")
@@ -341,10 +345,12 @@ class ScreenStreamService : Service(), ConnectChecker {
             .firstOrNull { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET }
             ?: return
 
-        when (audioInput) {
+        val applied = when (audioInput) {
             is MicrophoneSource -> audioInput.setPreferredDevice(wiredMic)
             is OssAudioMixerSource -> audioInput.setPreferredMicrophoneDevice(wiredMic)
+            else -> false
         }
+        AudioDiagnostics.add("Preferred wired microphone=${wiredMic.productName}; type=${wiredMic.type}; applied=$applied")
     }
 
     private fun stopStreaming() {
