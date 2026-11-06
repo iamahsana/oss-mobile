@@ -78,6 +78,10 @@ class ScreenStreamService : Service(), ConnectChecker {
     fun setMixerMasterGain(gain: Float) {
         mixerSource?.setMasterGain(com.oss.mobile.audio.AudioOutputBus.LIVE, gain)
     }
+    fun mixerMasterGain(): Float =
+        mixerSource?.masterGain(com.oss.mobile.audio.AudioOutputBus.LIVE) ?: 1f
+    fun mixerChannelState(channelId: String): com.oss.mobile.audio.AudioChannelState? =
+        mixerSource?.channelState(channelId)
     fun mixerMeters() = mixerSource?.channelMeters() ?: emptyMap<String, com.oss.mobile.audio.AudioLevelMeter>()
 
     fun isCapturedContentVisible(): Boolean = capturedContentVisible
