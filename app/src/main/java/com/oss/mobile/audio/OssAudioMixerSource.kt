@@ -193,6 +193,11 @@ class OssAudioMixerSource(
 
     fun channelMeters(): Map<String, AudioLevelMeter> = latestMeters
 
+    fun channelState(channelId: String): AudioChannelState? =
+        mixer.channels().firstOrNull { it.channelId == channelId }
+
+    fun masterGain(bus: AudioOutputBus): Float = mixer.masterGain(bus)
+
     fun registerChannel(channel: AudioChannelState) = mixer.setChannel(channel)
 
     fun removeChannel(channelId: String) = mixer.removeChannel(channelId)
