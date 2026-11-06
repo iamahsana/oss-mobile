@@ -25,6 +25,36 @@ enum class AudioOutputBus {
 }
 
 /** Routing and gain state for one independently captured source. */
+/** Peak and RMS levels normalized to 0.0..1.0 for channel meters. */
+data class AudioLevelMeter(
+    val peak: Float,
+    val rms: Float,
+    val sampleCount: Int
+) {
+    companion object {
+        fun from(frame: PcmAudioFrame): AudioLevelMeter {
+            val count = frame.data.size / 2
+            if (count == 0) return AudioLevelMeter(0f, 0f, 0)
+            var peak = 0L
+            var squares = 0.0
+            var offset = 0
+            repeat(count) {
+                val low = frame.data[offset].toInt() and 0xFF
+                val high = frame.data[offset + 1].toInt()
+                val sample = ((high shl 8) or low).toShort().toInt()
+                peak = maxOf(peak, kotlin.math.abs(sample.toLong()))
+                squares += sample.toDouble() * sample.toDouble()
+                offset += 2
+            }
+            return AudioLevelMeter(
+                (peak / 32768f).coerceIn(0f, 1f),
+                (kotlin.math.sqrt(squares / count) / 32768.0).toFloat().coerceIn(0f, 1f),
+                count
+            )
+        }
+    }
+}
+
 data class AudioChannelState(
     val channelId: String,
     val sourceId: String,
