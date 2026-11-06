@@ -5,6 +5,8 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.ComponentName
@@ -29,6 +31,7 @@ import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
+import com.oss.mobile.audio.AudioDiagnostics
 
 class MainActivity : Activity() {
     private val scenes = mutableListOf<String>()
@@ -379,6 +382,27 @@ class MainActivity : Activity() {
             }
         }
         audioCard.addView(audioModes)
+        val diagnosticsButton = Button(this).apply {
+            text = "Audio diagnostics"
+            isAllCaps = false
+            textSize = 13f
+            setTextColor(0xFFEAF2F8.toInt())
+            background = roundedBackground(0xFF263746.toInt(), 12)
+            setOnClickListener {
+                val report = AudioDiagnostics.snapshot()
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle("OSS Audio Diagnostics")
+                    .setMessage(report)
+                    .setPositiveButton("Salin laporan") { _, _ ->
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("OSS audio diagnostics", report))
+                        Toast.makeText(this@MainActivity, "Laporan diagnostik disalin.", Toast.LENGTH_SHORT).show()
+                    }
+                    .setNegativeButton("Tutup", null)
+                    .show()
+            }
+        }
+        audioCard.addView(diagnosticsButton)
         page.addView(audioCard)
 
         val destinationCard = makeCard()
