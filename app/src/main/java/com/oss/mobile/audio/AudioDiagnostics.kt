@@ -32,7 +32,15 @@ object AudioDiagnostics {
             events.clear()
             pcmStats.clear()
         }
-        add("Diagnostic session started")
+        add("Diagnostic journal cleared")
+    }
+
+    /** Start a new capture session without deleting reports from earlier tests. */
+    fun beginCaptureSession(label: String) {
+        synchronized(lock) {
+            pcmStats.clear()
+        }
+        add("----- New capture session: $label -----")
     }
 
     fun add(message: String) {
