@@ -45,6 +45,9 @@ jobs:
         with:
           gradle-version: "8.13"
 
+      - name: Run audio core unit tests
+        run: gradle --no-daemon testDebugUnitTest
+
       - name: Assemble debug APK
         env:
           OSS_KEYSTORE_PASSWORD: ${{ secrets.OSS_KEYSTORE_PASSWORD }}
