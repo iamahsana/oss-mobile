@@ -176,7 +176,7 @@ class ScreenStreamService : Service(), ConnectChecker {
             }
 
             val audioMode = intent.getStringExtra(EXTRA_AUDIO_MODE) ?: AUDIO_MODE_MICROPHONE
-            AudioDiagnostics.clear()
+            AudioDiagnostics.add("----- New capture session -----")
             AudioDiagnostics.add("Android SDK=${Build.VERSION.SDK_INT}; selectedMode=$audioMode")
             startAudioRecordingDiagnostics()
             val rawAudioInput = when (audioMode) {
