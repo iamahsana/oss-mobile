@@ -50,6 +50,9 @@ data class AudioChannelState(
  * Core PCM mixer. It does not capture audio or own an encoder; capture adapters
  * provide normalized frames and the streaming adapter forwards the LIVE result.
  *
+ * Channels are registered dynamically by stable channel ID. Each channel maps
+ * one source ID to independent LIVE and MONITOR routing.
+ *
  * Calls are synchronized so a routing/gain update cannot partially affect a frame.
  */
 class AudioMixerCore {
@@ -72,6 +75,40 @@ class AudioMixerCore {
 
     @Synchronized
     fun channels(): List<AudioChannelState> = channels.values.toList()
+
+    @Synchronized
+    fun setChannelEnabled(channelId: String, enabled: Boolean): Boolean =
+        updateChannel(channelId) { it.copy(enabled = enabled) }
+
+    @Synchronized
+    fun setChannelMuted(channelId: String, muted: Boolean): Boolean =
+        updateChannel(channelId) { it.copy(muted = muted) }
+
+    @Synchronized
+    fun setChannelGain(channelId: String, gain: Float): Boolean {
+        require(gain.isFinite() && gain in 0f..2f) {
+            "gain must be between 0.0 and 2.0"
+        }
+        return updateChannel(channelId) { it.copy(gain = gain) }
+    }
+
+    @Synchronized
+    fun setChannelRouting(
+        channelId: String,
+        toLive: Boolean,
+        toMonitor: Boolean
+    ): Boolean = updateChannel(channelId) {
+        it.copy(toLive = toLive, toMonitor = toMonitor)
+    }
+
+    private fun updateChannel(
+        channelId: String,
+        transform: (AudioChannelState) -> AudioChannelState
+    ): Boolean {
+        val current = channels[channelId] ?: return false
+        channels[channelId] = transform(current)
+        return true
+    }
 
     @Synchronized
     fun mix(
@@ -125,7 +162,12 @@ class AudioMixerCore {
         // between channels and avoids the hard saturation seen in PCM diagnostics.
         var framePeak = 0
         for (sample in accumulator) {
-            framePeak = maxOf(framePeak, kotlin.math.abs(sample.toLong()).coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+            framePeak = maxOf(
+                framePeak,
+                kotlin.math.abs(sample.toLong())
+                    .coerceAtMost(Int.MAX_VALUE.toLong())
+                    .toInt()
+            )
         }
         val limiterGain = if (framePeak > LIMITER_CEILING) {
             LIMITER_CEILING.toFloat() / framePeak.toFloat()
