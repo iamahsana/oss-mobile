@@ -56,7 +56,7 @@ class ScreenStreamService : Service(), ConnectChecker {
     private var pendingPreview: TextureView? = null
     private var overlayCompositor: OverlayCompositor? = null
     private var userRequestedStop = false
-    private var reconnectInProgress = false
+    private var lastReconnectAttemptAt = 0L
 
     fun isCapturedContentVisible(): Boolean = capturedContentVisible
 
@@ -146,7 +146,7 @@ class ScreenStreamService : Service(), ConnectChecker {
 
         try {
             userRequestedStop = false
-            reconnectInProgress = false
+            lastReconnectAttemptAt = 0L
             startAsForeground()
             sendStatus("Menyiapkan encoder dan screen capture…")
             val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
@@ -275,6 +275,7 @@ class ScreenStreamService : Service(), ConnectChecker {
     }
 
     private fun stopStreaming() {
+        userRequestedStop = true
         try {
             overlayCompositor?.clear()
             overlayCompositor = null
@@ -331,7 +332,7 @@ class ScreenStreamService : Service(), ConnectChecker {
     }
 
     override fun onConnectionSuccess() {
-        reconnectInProgress = false
+        lastReconnectAttemptAt = 0L
         updateNotification("Terhubung — streaming aktif")
         sendStatus("TERHUBUNG — streaming aktif ke RTMP.")
     }
@@ -352,7 +353,12 @@ class ScreenStreamService : Service(), ConnectChecker {
     }
 
     private fun attemptReconnect(reason: String) {
-        if (userRequestedStop || reconnectInProgress) return
+        if (userRequestedStop) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        // Ignore duplicate failure/disconnect callbacks from the same socket event,
+        // but allow later failures to consume the configured retry budget.
+        if (now - lastReconnectAttemptAt < 1000L) return
+        lastReconnectAttemptAt = now
         val current = stream
         val retryAccepted = try {
             current?.getStreamClient()?.reTry(RECONNECT_DELAY_MS, reason) == true
@@ -360,7 +366,6 @@ class ScreenStreamService : Service(), ConnectChecker {
             false
         }
         if (retryAccepted) {
-            reconnectInProgress = true
             updateNotification("Koneksi terputus — mencoba menyambungkan ulang…")
             sendStatus("Koneksi terputus: $reason. Mencoba menyambungkan ulang (maksimal $MAX_RECONNECT_ATTEMPTS kali)…")
         } else {
