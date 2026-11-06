@@ -24,6 +24,9 @@ class OssAudioMixerSource(
     private val mixer = AudioMixerCore()
 
     @Volatile
+    private var latestMeters: Map<String, AudioLevelMeter> = emptyMap()
+
+    @Volatile
     private var output: GetMicrophoneData? = null
 
     private val frameLock = Any()
@@ -120,10 +123,9 @@ class OssAudioMixerSource(
                 if (abs(delta) <= MAX_PAIR_DELTA_US) {
                     microphoneFrames.removeFirst()
                     internalFrames.removeFirst()
-                    val mixed = mixer.mix(
-                        mapOf("microphone" to mic, "internal" to internal),
-                        AudioOutputBus.LIVE
-                    )
+                    val inputFrames = mapOf("microphone" to mic, "internal" to internal)
+                    latestMeters = mixer.channelMeters(inputFrames)
+                    val mixed = mixer.mix(inputFrames, AudioOutputBus.LIVE)
                     if (mixed != null) ready.add(mixed)
                 } else if (delta < 0L) {
                     // The microphone frame is too old to pair with this playback frame.
@@ -166,6 +168,36 @@ class OssAudioMixerSource(
         microphoneSource.release()
         internalSource.release()
     }
+
+    /** Public control surface for the future digital mixer UI. */
+    fun setChannelGain(channelId: String, gain: Float): Boolean =
+        mixer.setChannelGain(channelId, gain)
+
+    fun setChannelMuted(channelId: String, muted: Boolean): Boolean =
+        mixer.setChannelMuted(channelId, muted)
+
+    fun setChannelEnabled(channelId: String, enabled: Boolean): Boolean =
+        mixer.setChannelEnabled(channelId, enabled)
+
+    fun setChannelBalance(channelId: String, balance: Float): Boolean =
+        mixer.setChannelBalance(channelId, balance)
+
+    fun setChannelRouting(
+        channelId: String,
+        toLive: Boolean,
+        toMonitor: Boolean
+    ): Boolean = mixer.setChannelRouting(channelId, toLive, toMonitor)
+
+    fun setMasterGain(bus: AudioOutputBus, gain: Float) =
+        mixer.setMasterGain(bus, gain)
+
+    fun channelMeters(): Map<String, AudioLevelMeter> = latestMeters
+
+    fun registerChannel(channel: AudioChannelState) = mixer.setChannel(channel)
+
+    fun removeChannel(channelId: String) = mixer.removeChannel(channelId)
+
+    fun channels(): List<AudioChannelState> = mixer.channels()
 
     fun setPreferredMicrophoneDevice(deviceInfo: AudioDeviceInfo?): Boolean =
         microphoneSource.setPreferredDevice(deviceInfo)
