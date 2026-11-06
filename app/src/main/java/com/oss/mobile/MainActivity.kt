@@ -491,7 +491,7 @@ class MainActivity : Activity() {
 
     private fun showDigitalMixer() {
         val service = streamService
-        if (service?.isMixerAvailable() != true) {
+        if (service == null || !service.isMixerAvailable()) {
             AlertDialog.Builder(this)
                 .setTitle("Digital Audio Mixer")
                 .setMessage("Mixer tersedia saat streaming aktif dengan mode Internal audio + microphone.")
@@ -513,6 +513,7 @@ class MainActivity : Activity() {
             .setView(scroll)
             .setPositiveButton("Tutup", null)
             .create()
+        val meterRefreshers = mutableListOf<Pair<TextView, Runnable>>()
 
         fun addLabel(text: String, size: Float = 13f, color: Int = 0xFFEAF2F8.toInt(), bold: Boolean = false) {
             content.addView(makeText(text, size, color, bold).apply {
@@ -617,8 +618,8 @@ class MainActivity : Activity() {
                     meter.postDelayed(this, 250L)
                 }
             }
+            meterRefreshers.add(meter to meterRefresh)
             meter.post(meterRefresh)
-            dialog.setOnDismissListener { meter.removeCallbacks(meterRefresh) }
         }
 
         addLabel("INPUT CHANNELS", 11f, 0xFF8FA7B8.toInt(), true)
@@ -641,6 +642,9 @@ class MainActivity : Activity() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
         })
         addLabel("MONITOR bus belum memiliki output playback. Kontrolnya belum diaktifkan.", 11f, 0xFF8FA7B8.toInt())
+        dialog.setOnDismissListener {
+            meterRefreshers.forEach { (view, runnable) -> view.removeCallbacks(runnable) }
+        }
         dialog.show()
     }
 
