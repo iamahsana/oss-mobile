@@ -97,6 +97,7 @@ class OssAudioMixerSource(
         val end = frame.offset + frame.size
         if (frame.offset < 0 || frame.size <= 0 || end > frame.buffer.size) return
 
+        AudioDiagnostics.recordPcm(sourceId, frame)
         val pcm = PcmAudioFrame(
             sourceId = sourceId,
             data = frame.buffer.copyOfRange(frame.offset, end),
@@ -136,6 +137,7 @@ class OssAudioMixerSource(
         }
 
         for (mixedFrame in mixedFrames) {
+            AudioDiagnostics.recordPcm("mixed-output", Frame(mixedFrame.data, 0, mixedFrame.data.size, mixedFrame.timestampUs))
             output?.inputPCMData(
                 Frame(
                     mixedFrame.data,
