@@ -29,6 +29,10 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.RadioButton
 import android.widget.RadioGroup
+import android.widget.SeekBar
+import android.widget.CheckBox
+import android.os.Handler
+import android.os.Looper
 import android.widget.TextView
 import android.widget.Toast
 import com.oss.mobile.audio.AudioDiagnostics
@@ -403,6 +407,18 @@ class MainActivity : Activity() {
             }
         }
         audioCard.addView(diagnosticsButton)
+
+        val mixerButton = Button(this).apply {
+            text = "Digital Audio Mixer"
+            isAllCaps = false
+            textSize = 13f
+            setTextColor(0xFF07131B.toInt())
+            background = roundedBackground(0xFF61D9F4.toInt(), 12)
+            setOnClickListener { showDigitalMixer() }
+        }
+        audioCard.addView(mixerButton, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(48)
+        ).apply { topMargin = dp(8) })
         page.addView(audioCard)
 
         val destinationCard = makeCard()
@@ -471,6 +487,161 @@ class MainActivity : Activity() {
 
         setContentView(scroll)
         refreshScenes()
+    }
+
+    private fun showDigitalMixer() {
+        val service = streamService
+        if (service?.isMixerAvailable() != true) {
+            AlertDialog.Builder(this)
+                .setTitle("Digital Audio Mixer")
+                .setMessage("Mixer tersedia saat streaming aktif dengan mode Internal audio + microphone.")
+                .setPositiveButton("Mengerti", null)
+                .show()
+            return
+        }
+
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(8), dp(18), dp(8))
+        }
+        val scroll = ScrollView(this).apply {
+            addView(content)
+            isFillViewport = false
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("OSS Digital Mixer")
+            .setView(scroll)
+            .setPositiveButton("Tutup", null)
+            .create()
+
+        fun addLabel(text: String, size: Float = 13f, color: Int = 0xFFEAF2F8.toInt(), bold: Boolean = false) {
+            content.addView(makeText(text, size, color, bold).apply {
+                setPadding(0, dp(8), 0, dp(3))
+            })
+        }
+
+        fun addChannel(channelId: String, title: String) {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(12), dp(10), dp(12), dp(10))
+                background = roundedBackground(0xFF17232E.toInt(), 14, 0xFF314454.toInt())
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { bottomMargin = dp(10) }
+            }
+            val heading = makeText(title, 15f, 0xFFFFFFFF.toInt(), true)
+            val meter = makeText("Peak 0%  •  RMS 0%", 11f, 0xFF7DE3FF.toInt())
+            card.addView(heading)
+            card.addView(meter)
+
+            val gainLabel = makeText("Volume: 100%", 12f, 0xFFDCE8F0.toInt())
+            card.addView(gainLabel)
+            val gain = SeekBar(this).apply {
+                max = 200
+                progress = 100
+            }
+            card.addView(gain)
+            gain.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    gainLabel.text = "Volume: $progress%"
+                    if (fromUser) service.setMixerChannelGain(channelId, progress / 100f)
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+
+            val balanceLabel = makeText("Balance: Center", 12f, 0xFFDCE8F0.toInt())
+            card.addView(balanceLabel)
+            val balance = SeekBar(this).apply {
+                max = 200
+                progress = 100
+            }
+            card.addView(balance)
+            balance.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val value = progress - 100
+                    balanceLabel.text = when {
+                        value < 0 -> "Balance: L ${-value}%"
+                        value > 0 -> "Balance: R $value%"
+                        else -> "Balance: Center"
+                    }
+                    if (fromUser) service.setMixerChannelBalance(channelId, value / 100f)
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+
+            val toggles = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            val mute = CheckBox(this).apply {
+                text = "Mute"
+                setTextColor(0xFFEAF2F8.toInt())
+                buttonTintList = android.content.res.ColorStateList.valueOf(0xFF61D9F4.toInt())
+            }
+            mute.setOnCheckedChangeListener { _, checked ->
+                service.setMixerChannelMuted(channelId, checked)
+            }
+            val live = CheckBox(this).apply {
+                text = "LIVE"
+                isChecked = true
+                setTextColor(0xFFEAF2F8.toInt())
+                buttonTintList = android.content.res.ColorStateList.valueOf(0xFF61D9F4.toInt())
+            }
+            val monitor = CheckBox(this).apply {
+                text = "MONITOR"
+                isChecked = false
+                setTextColor(0xFF8FA7B8.toInt())
+                isEnabled = false
+                buttonTintList = android.content.res.ColorStateList.valueOf(0xFF61D9F4.toInt())
+            }
+            live.setOnCheckedChangeListener { _, checked ->
+                service.setMixerChannelRouting(channelId, checked, false)
+            }
+            toggles.addView(mute)
+            toggles.addView(live)
+            toggles.addView(monitor)
+            card.addView(toggles)
+            content.addView(card)
+
+            val meterRefresh = object : Runnable {
+                override fun run() {
+                    if (!dialog.isShowing) return
+                    val level = service.mixerMeters()[channelId]
+                    if (level != null) {
+                        meter.text = "Peak ${(level.peak * 100).toInt()}%  •  RMS ${(level.rms * 100).toInt()}%"
+                    } else {
+                        meter.text = "Peak 0%  •  RMS 0%"
+                    }
+                    meter.postDelayed(this, 250L)
+                }
+            }
+            meter.post(meterRefresh)
+            dialog.setOnDismissListener { meter.removeCallbacks(meterRefresh) }
+        }
+
+        addLabel("INPUT CHANNELS", 11f, 0xFF8FA7B8.toInt(), true)
+        addChannel("microphone", "Microphone")
+        addChannel("internal", "Internal game audio")
+        addLabel("MASTER — LIVE", 13f, 0xFFFFFFFF.toInt(), true)
+        val masterLabel = makeText("Master volume: 100%", 12f, 0xFFDCE8F0.toInt())
+        content.addView(masterLabel)
+        val master = SeekBar(this).apply {
+            max = 200
+            progress = 100
+        }
+        content.addView(master)
+        master.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                masterLabel.text = "Master volume: $progress%"
+                if (fromUser) service.setMixerMasterGain(progress / 100f)
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        addLabel("MONITOR bus belum memiliki output playback. Kontrolnya belum diaktifkan.", 11f, 0xFF8FA7B8.toInt())
+        dialog.show()
     }
 
     private fun buildRtmpEndpoint(): String? {
