@@ -93,10 +93,9 @@ object AudioDiagnostics {
         configurations.forEachIndexed { index, config ->
             val client = config.clientFormat
             val device = config.audioDevice
-            val packageName = if (Build.VERSION.SDK_INT >= 29) config.clientPackageName else "unknown"
             val silenced = if (Build.VERSION.SDK_INT >= 29) config.isClientSilenced else false
             add(
-                "REC[$index] app=$packageName source=${config.clientAudioSource} silenced=$silenced " +
+                "REC[$index] session=${config.clientAudioSessionId} source=${config.clientAudioSource} silenced=$silenced " +
                     "client=${client.sampleRate}Hz/${client.channelCount}ch device=${device?.type}:${device?.productName}"
             )
         }
