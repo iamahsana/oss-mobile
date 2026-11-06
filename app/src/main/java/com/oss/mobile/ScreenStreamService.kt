@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.media.AudioRecordingConfiguration
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -20,6 +21,8 @@ import com.pedro.common.ConnectChecker
 import com.pedro.encoder.input.sources.audio.InternalAudioSource
 import com.pedro.encoder.input.sources.audio.MicrophoneSource
 import com.oss.mobile.audio.OssAudioMixerSource
+import com.oss.mobile.audio.AudioDiagnostics
+import com.oss.mobile.audio.DiagnosticAudioSource
 import com.pedro.encoder.input.sources.video.NoVideoSource
 import com.pedro.encoder.input.sources.video.ScreenSource
 import com.pedro.library.generic.GenericStream
@@ -59,6 +62,8 @@ class ScreenStreamService : Service(), ConnectChecker {
     private var overlayCompositor: OverlayCompositor? = null
     private var userRequestedStop = false
     private var lastReconnectAttemptAt = 0L
+    private var audioRecordingCallback: AudioManager.AudioRecordingCallback? = null
+    private var diagnosticAudioManager: AudioManager? = null
 
     fun isCapturedContentVisible(): Boolean = capturedContentVisible
 
@@ -171,7 +176,10 @@ class ScreenStreamService : Service(), ConnectChecker {
             }
 
             val audioMode = intent.getStringExtra(EXTRA_AUDIO_MODE) ?: AUDIO_MODE_MICROPHONE
-            val audioInput = when (audioMode) {
+            AudioDiagnostics.clear()
+            AudioDiagnostics.add("Android SDK=${Build.VERSION.SDK_INT}; selectedMode=$audioMode")
+            startAudioRecordingDiagnostics()
+            val rawAudioInput = when (audioMode) {
                 AUDIO_MODE_INTERNAL -> {
                     if (Build.VERSION.SDK_INT < 29) {
                         throw IllegalStateException("Audio internal memerlukan Android 10+")
@@ -186,6 +194,12 @@ class ScreenStreamService : Service(), ConnectChecker {
                 }
                 else -> MicrophoneSource()
             }
+            val audioInput = if (rawAudioInput is OssAudioMixerSource) {
+                rawAudioInput
+            } else {
+                DiagnosticAudioSource(rawAudioInput, audioMode)
+            }
+            AudioDiagnostics.add("Selected source adapter=${audioInput.javaClass.simpleName}")
 
             val output = GenericStream(this, this, NoVideoSource(), audioInput)
             // RootEncoder handles bounded reconnect attempts without rebuilding
@@ -206,7 +220,7 @@ class ScreenStreamService : Service(), ConnectChecker {
 
             // Prefer the wired headset microphone when Android exposes one.
             // InternalAudioSource remains playback-capture based and is not rerouted.
-            applyWiredHeadsetInput(audioInput)
+            applyWiredHeadsetInput(rawAudioInput)
 
             overlayCompositor = OverlayCompositor(output.getGlInterface())
             output.getGlInterface().setForceRender(true, 15)
@@ -284,6 +298,41 @@ class ScreenStreamService : Service(), ConnectChecker {
         }
     }
 
+    private fun startAudioRecordingDiagnostics() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        val manager = getSystemService(AUDIO_SERVICE) as AudioManager
+        diagnosticAudioManager = manager
+        val inputs = manager.getDevices(AudioManager.GET_DEVICES_INPUTS)
+            .joinToString { "${it.type}:${it.productName}" }
+        AudioDiagnostics.add("AudioManager mode=${manager.mode}; micMuted=${manager.isMicrophoneMute}; inputDevices=$inputs")
+
+        val callback = object : AudioManager.AudioRecordingCallback() {
+            override fun onRecordingConfigChanged(configs: MutableList<AudioRecordingConfiguration>?) {
+                AudioDiagnostics.recordingConfigurations(configs)
+            }
+        }
+        audioRecordingCallback = callback
+        try {
+            manager.registerAudioRecordingCallback(callback, Handler(Looper.getMainLooper()))
+            AudioDiagnostics.recordingConfigurations(manager.activeRecordingConfigurations)
+        } catch (error: Exception) {
+            AudioDiagnostics.add("Unable to register recording callback: ${error.javaClass.simpleName}: ${error.message}")
+        }
+    }
+
+    private fun stopAudioRecordingDiagnostics() {
+        val manager = diagnosticAudioManager
+        val callback = audioRecordingCallback
+        if (manager != null && callback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                manager.unregisterAudioRecordingCallback(callback)
+            } catch (_: Exception) {
+            }
+        }
+        audioRecordingCallback = null
+        diagnosticAudioManager = null
+    }
+
     private fun applyWiredHeadsetInput(audioInput: com.pedro.encoder.input.sources.audio.AudioSource) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
 
@@ -300,6 +349,7 @@ class ScreenStreamService : Service(), ConnectChecker {
 
     private fun stopStreaming() {
         userRequestedStop = true
+        stopAudioRecordingDiagnostics()
         try {
             overlayCompositor?.clear()
             overlayCompositor = null
@@ -321,6 +371,7 @@ class ScreenStreamService : Service(), ConnectChecker {
     }
 
     private fun stopStreamingResources() {
+        stopAudioRecordingDiagnostics()
         try {
             overlayCompositor?.clear()
             overlayCompositor = null
