@@ -64,6 +64,21 @@ class ScreenStreamService : Service(), ConnectChecker {
     private var lastReconnectAttemptAt = 0L
     private var audioRecordingCallback: AudioManager.AudioRecordingCallback? = null
     private var diagnosticAudioManager: AudioManager? = null
+    @Volatile private var mixerSource: OssAudioMixerSource? = null
+
+    fun isMixerAvailable(): Boolean = mixerSource != null
+    fun setMixerChannelGain(channelId: String, gain: Float): Boolean =
+        mixerSource?.setChannelGain(channelId, gain) ?: false
+    fun setMixerChannelMuted(channelId: String, muted: Boolean): Boolean =
+        mixerSource?.setChannelMuted(channelId, muted) ?: false
+    fun setMixerChannelBalance(channelId: String, balance: Float): Boolean =
+        mixerSource?.setChannelBalance(channelId, balance) ?: false
+    fun setMixerChannelRouting(channelId: String, toLive: Boolean, toMonitor: Boolean): Boolean =
+        mixerSource?.setChannelRouting(channelId, toLive, toMonitor) ?: false
+    fun setMixerMasterGain(gain: Float) {
+        mixerSource?.setMasterGain(com.oss.mobile.audio.AudioOutputBus.LIVE, gain)
+    }
+    fun mixerMeters() = mixerSource?.channelMeters() ?: emptyMap<String, com.oss.mobile.audio.AudioLevelMeter>()
 
     fun isCapturedContentVisible(): Boolean = capturedContentVisible
 
@@ -194,6 +209,7 @@ class ScreenStreamService : Service(), ConnectChecker {
                 }
                 else -> MicrophoneSource()
             }
+            mixerSource = rawAudioInput as? OssAudioMixerSource
             val audioInput = if (rawAudioInput is OssAudioMixerSource) {
                 rawAudioInput
             } else {
@@ -365,6 +381,7 @@ class ScreenStreamService : Service(), ConnectChecker {
             // Best-effort cleanup after partial initialization.
         }
         stream = null
+        mixerSource = null
         pendingPreview = null
         releaseProjection()
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -386,6 +403,7 @@ class ScreenStreamService : Service(), ConnectChecker {
         } catch (_: Exception) {
         }
         stream = null
+        mixerSource = null
         releaseProjection()
     }
 
