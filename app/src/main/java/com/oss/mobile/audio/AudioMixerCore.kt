@@ -61,6 +61,8 @@ data class AudioChannelState(
     val enabled: Boolean = true,
     val muted: Boolean = false,
     val gain: Float = 1f,
+    /** Stereo balance: -1 = left, 0 = center, +1 = right. */
+    val balance: Float = 0f,
     val toLive: Boolean = true,
     val toMonitor: Boolean = false
 ) {
@@ -68,6 +70,7 @@ data class AudioChannelState(
         require(channelId.isNotBlank()) { "channelId must not be blank" }
         require(sourceId.isNotBlank()) { "sourceId must not be blank" }
         require(gain.isFinite() && gain in 0f..2f) { "gain must be between 0.0 and 2.0" }
+        require(balance.isFinite() && balance in -1f..1f) { "balance must be between -1.0 and 1.0" }
     }
 
     fun routesTo(bus: AudioOutputBus): Boolean = when (bus) {
@@ -87,6 +90,7 @@ data class AudioChannelState(
  */
 class AudioMixerCore {
     private val channels = LinkedHashMap<String, AudioChannelState>()
+    private val masterGains = mutableMapOf(AudioOutputBus.LIVE to 1f, AudioOutputBus.MONITOR to 1f)
 
     private companion object {
         // Leave headroom below signed PCM16 full scale to prevent hard clipping.
@@ -121,6 +125,34 @@ class AudioMixerCore {
         }
         return updateChannel(channelId) { it.copy(gain = gain) }
     }
+
+    @Synchronized
+    fun setChannelBalance(channelId: String, balance: Float): Boolean {
+        require(balance.isFinite() && balance in -1f..1f) {
+            "balance must be between -1.0 and 1.0"
+        }
+        return updateChannel(channelId) { it.copy(balance = balance) }
+    }
+
+    @Synchronized
+    fun setMasterGain(bus: AudioOutputBus, gain: Float) {
+        require(gain.isFinite() && gain in 0f..2f) {
+            "master gain must be between 0.0 and 2.0"
+        }
+        masterGains[bus] = gain
+    }
+
+    @Synchronized
+    fun masterGain(bus: AudioOutputBus): Float = masterGains[bus] ?: 1f
+
+    /** Input meters are keyed by channel ID and measured before channel gain. */
+    @Synchronized
+    fun channelMeters(framesBySource: Map<String, PcmAudioFrame>): Map<String, AudioLevelMeter> =
+        channels.values.mapNotNull { channel ->
+            framesBySource[channel.sourceId]?.let {
+                channel.channelId to AudioLevelMeter.from(it)
+            }
+        }.toMap()
 
     @Synchronized
     fun setChannelRouting(
@@ -181,10 +213,22 @@ class AudioMixerCore {
                 val low = frame.data[offset].toInt() and 0xFF
                 val high = frame.data[offset + 1].toInt()
                 val sample = (high shl 8) or low
-                accumulator[sampleIndex] += (sample * gain).toInt()
+                val balanceGain = if (frame.channelCount == 2) {
+                    when {
+                        sampleIndex % 2 == 0 && channel.balance > 0f -> 1f - channel.balance
+                        sampleIndex % 2 == 1 && channel.balance < 0f -> 1f + channel.balance
+                        else -> 1f
+                    }
+                } else 1f
+                accumulator[sampleIndex] += (sample * gain * balanceGain).toInt()
                 offset += 2
                 sampleIndex++
             }
+        }
+
+        val masterGain = masterGains[bus] ?: 1f
+        if (masterGain != 1f) {
+            for (i in accumulator.indices) accumulator[i] = (accumulator[i] * masterGain).toInt()
         }
 
         // Frame-linked peak limiter: if the summed frame exceeds the ceiling,
