@@ -45,6 +45,8 @@ class ScreenStreamService : Service(), ConnectChecker {
         const val EXTRA_STATUS = "stream_status"
         private const val CHANNEL_ID = "oss_screen_stream"
         private const val NOTIFICATION_ID = 41
+        private const val MAX_RECONNECT_ATTEMPTS = 5
+        private const val RECONNECT_DELAY_MS = 2000L
     }
 
     private var stream: GenericStream? = null
@@ -53,6 +55,8 @@ class ScreenStreamService : Service(), ConnectChecker {
     private var capturedContentVisible = false
     private var pendingPreview: TextureView? = null
     private var overlayCompositor: OverlayCompositor? = null
+    private var userRequestedStop = false
+    private var reconnectInProgress = false
 
     fun isCapturedContentVisible(): Boolean = capturedContentVisible
 
@@ -124,6 +128,7 @@ class ScreenStreamService : Service(), ConnectChecker {
         }
 
         if (intent.action == ACTION_STOP) {
+            userRequestedStop = true
             sendStatus("Menghentikan streaming…")
             stopStreaming()
             sendStatus("Streaming dihentikan.")
@@ -140,6 +145,8 @@ class ScreenStreamService : Service(), ConnectChecker {
         }
 
         try {
+            userRequestedStop = false
+            reconnectInProgress = false
             startAsForeground()
             sendStatus("Menyiapkan encoder dan screen capture…")
             val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
@@ -179,6 +186,9 @@ class ScreenStreamService : Service(), ConnectChecker {
             }
 
             val output = GenericStream(this, this, NoVideoSource(), audioInput)
+            // RootEncoder handles bounded reconnect attempts without rebuilding
+            // MediaProjection, screen capture, or the audio pipeline.
+            output.getStreamClient().setReTries(MAX_RECONNECT_ATTEMPTS)
             stream = output
             val isMixedAudio = audioMode == AUDIO_MODE_MIX
             val prepared = output.prepareVideo(720, 1280, 1_800_000, rotation = 0) &&
@@ -321,21 +331,43 @@ class ScreenStreamService : Service(), ConnectChecker {
     }
 
     override fun onConnectionSuccess() {
+        reconnectInProgress = false
         updateNotification("Terhubung — streaming aktif")
         sendStatus("TERHUBUNG — streaming aktif ke RTMP.")
     }
 
     override fun onConnectionFailed(reason: String) {
-        updateNotification("Koneksi gagal: $reason")
-        sendStatus("Koneksi gagal: $reason")
-        stopStreaming()
+        attemptReconnect(reason)
     }
 
     override fun onNewBitrate(bitrate: Long) = Unit
 
     override fun onDisconnect() {
-        updateNotification("Streaming terputus")
-        sendStatus("Streaming terputus.")
+        if (!userRequestedStop) {
+            attemptReconnect("Koneksi RTMP terputus")
+        } else {
+            updateNotification("Streaming dihentikan")
+            sendStatus("Streaming dihentikan.")
+        }
+    }
+
+    private fun attemptReconnect(reason: String) {
+        if (userRequestedStop || reconnectInProgress) return
+        val current = stream
+        val retryAccepted = try {
+            current?.getStreamClient()?.reTry(RECONNECT_DELAY_MS, reason) == true
+        } catch (_: Exception) {
+            false
+        }
+        if (retryAccepted) {
+            reconnectInProgress = true
+            updateNotification("Koneksi terputus — mencoba menyambungkan ulang…")
+            sendStatus("Koneksi terputus: $reason. Mencoba menyambungkan ulang (maksimal $MAX_RECONNECT_ATTEMPTS kali)…")
+        } else {
+            updateNotification("Streaming terputus: $reason")
+            sendStatus("Streaming terputus: $reason. Percobaan sambung ulang tidak tersedia atau batas percobaan tercapai.")
+            stopStreaming()
+        }
     }
 
     override fun onAuthError() {
