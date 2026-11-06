@@ -6,6 +6,8 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -202,6 +204,10 @@ class ScreenStreamService : Service(), ConnectChecker {
 
             if (!prepared) throw IllegalStateException("Encoder tidak berhasil disiapkan")
 
+            // Prefer the wired headset microphone when Android exposes one.
+            // InternalAudioSource remains playback-capture based and is not rerouted.
+            applyWiredHeadsetInput(audioInput)
+
             overlayCompositor = OverlayCompositor(output.getGlInterface())
             output.getGlInterface().setForceRender(true, 15)
             // ScreenSource manages display rotation itself; do not apply camera rotation.
@@ -263,7 +269,11 @@ class ScreenStreamService : Service(), ConnectChecker {
                 .build()
         }
 
-        if (Build.VERSION.SDK_INT >= 29) {
+        if (Build.VERSION.SDK_INT >= 30) {
+            val serviceTypes = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            startForeground(NOTIFICATION_ID, notification, serviceTypes)
+        } else if (Build.VERSION.SDK_INT >= 29) {
             startForeground(
                 NOTIFICATION_ID,
                 notification,
@@ -271,6 +281,20 @@ class ScreenStreamService : Service(), ConnectChecker {
             )
         } else {
             startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
+    private fun applyWiredHeadsetInput(audioInput: com.pedro.encoder.input.sources.audio.AudioSource) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        val wiredMic = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
+            .firstOrNull { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET }
+            ?: return
+
+        when (audioInput) {
+            is MicrophoneSource -> audioInput.setPreferredDevice(wiredMic)
+            is MixAudioSource -> audioInput.setPreferredDevice(wiredMic)
         }
     }
 
