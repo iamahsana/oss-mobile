@@ -55,6 +55,11 @@ data class AudioChannelState(
 class AudioMixerCore {
     private val channels = LinkedHashMap<String, AudioChannelState>()
 
+    private companion object {
+        // Leave headroom below signed PCM16 full scale to prevent hard clipping.
+        const val LIMITER_CEILING = 30_000
+    }
+
     @Synchronized
     fun setChannel(channel: AudioChannelState) {
         channels[channel.channelId] = channel
@@ -77,7 +82,7 @@ class AudioMixerCore {
             .asSequence()
             .filter { it.enabled && !it.muted && it.routesTo(bus) }
             .mapNotNull { channel ->
-                framesBySource[channel.sourceId]?.let { frame -> channel to frame }
+                framesBySource[channel.sourceId]?.let { channel to it }
             }
             .toList()
 
@@ -115,9 +120,24 @@ class AudioMixerCore {
             }
         }
 
+        // Frame-linked peak limiter: if the summed frame exceeds the ceiling,
+        // attenuate the whole frame proportionally. This preserves the balance
+        // between channels and avoids the hard saturation seen in PCM diagnostics.
+        var framePeak = 0
+        for (sample in accumulator) {
+            framePeak = maxOf(framePeak, kotlin.math.abs(sample.toLong()).coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+        }
+        val limiterGain = if (framePeak > LIMITER_CEILING) {
+            LIMITER_CEILING.toFloat() / framePeak.toFloat()
+        } else {
+            1f
+        }
+
         val mixed = ByteArray(alignedByteCount)
         for (i in 0 until sampleCount) {
-            val sample = accumulator[i].coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+            val sample = (accumulator[i] * limiterGain)
+                .toInt()
+                .coerceIn(-LIMITER_CEILING, LIMITER_CEILING)
             mixed[i * 2] = (sample and 0xFF).toByte()
             mixed[i * 2 + 1] = (sample shr 8).toByte()
         }
