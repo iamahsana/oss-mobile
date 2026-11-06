@@ -50,14 +50,15 @@ Channels are registered dynamically by stable channel ID and each channel maps t
 - stable channel ID and source ID
 - enabled/muted state
 - linear gain (with a safe bounded range)
+- stereo balance (-1.0 left, 0.0 center, +1.0 right; ignored for mono frames)
 - independent routing flags for Live and Monitor
-- input level/meter data
+- input peak and RMS meter data, normalized to 0.0..1.0 and measured before channel gain
 
 A muted or unrouted channel must contribute silence to that destination. Muting Live must not mute Monitor, and vice versa. Removing a channel must not affect other channels.
 
 ### AudioMixer
 
-The core mixer sums only channels routed to the requested bus, applies channel gain, and prevents integer overflow/clipping. Channel registration, mute, enable, gain, and routing changes must be independent of other channels. It must handle missing/late frames without blocking the video/stream thread. Initial implementation should favor predictable low-latency behavior over advanced DSP.
+The core mixer sums only channels routed to the requested bus, applies per-channel gain and stereo balance, then applies that bus's independent master gain and prevents integer overflow/clipping. Input peak/RMS meters are exposed per channel ID. Channel registration, mute, enable, gain, and routing changes must be independent of other channels. It must handle missing/late frames without blocking the video/stream thread. Initial implementation should favor predictable low-latency behavior over advanced DSP.
 
 ### AudioBus
 
@@ -110,6 +111,9 @@ The Request Music row is an architectural example only; the player and audience 
 2. Internal-only: internal playback reaches Live; microphone does not.
 3. Mix: both reach Live independently.
 4. Per-channel mute affects only that channel.
+4a. Per-channel gain and stereo balance affect only that channel.
+4b. LIVE and MONITOR master gains are independent.
+4c. Peak/RMS meters report normalized input levels before fader gain.
 5. Per-channel gain affects only that channel.
 6. Live routing and Monitor routing are independent.
 7. A third registered source can be routed without changing microphone/internal channel configuration.
@@ -126,7 +130,8 @@ The Request Music row is an architectural example only; the player and audience 
 2. Introduce the core contracts and a two-source frame normalization layer without changing the UI.
 3. Connect the mixer to the existing RTMP audio encoder.
 4. Verify Mic-only, Internal-only, and Mix with captured test recordings/logs.
-5. Add per-channel gain/mute and Live routing controls.
+5. Add per-channel gain/mute, stereo balance, per-bus master gain, and peak/RMS meter core APIs.
+5a. Verify the mixer core with JVM unit tests before packaging the APK.
 6. Generalize the capture adapter to feed arbitrary registered sources into the dynamic mixer.
 7. Implement Monitor output only after device routing and echo tests.
 8. Add the optional processor extension point after the core path is stable.
