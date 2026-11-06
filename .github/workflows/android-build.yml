@@ -24,16 +24,21 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Restore stable OSS signing key
+      - name: Restore and verify stable OSS signing key
         env:
           OSS_KEYSTORE_BASE64: ${{ secrets.OSS_KEYSTORE_BASE64 }}
+          OSS_KEYSTORE_PASSWORD: ${{ secrets.OSS_KEYSTORE_PASSWORD }}
+          OSS_KEY_ALIAS: ${{ secrets.OSS_KEY_ALIAS }}
+          OSS_KEY_PASSWORD: ${{ secrets.OSS_KEY_PASSWORD }}
         run: |
-          if [ -n "$OSS_KEYSTORE_BASE64" ]; then
-            printf '%s' "$OSS_KEYSTORE_BASE64" | base64 --decode > app/oss-debug.keystore
-            echo "Stable OSS signing key restored."
-          else
-            echo "Stable signing key is not configured; this build will use a temporary debug key."
-          fi
+          set -e
+          test -n "$OSS_KEYSTORE_BASE64" || { echo "Missing OSS_KEYSTORE_BASE64"; exit 1; }
+          test -n "$OSS_KEYSTORE_PASSWORD" || { echo "Missing OSS_KEYSTORE_PASSWORD"; exit 1; }
+          test -n "$OSS_KEY_ALIAS" || { echo "Missing OSS_KEY_ALIAS"; exit 1; }
+          test -n "$OSS_KEY_PASSWORD" || { echo "Missing OSS_KEY_PASSWORD"; exit 1; }
+          printf '%s' "$OSS_KEYSTORE_BASE64" | base64 --decode > app/oss-debug.keystore
+          keytool -list -keystore app/oss-debug.keystore -storepass "$OSS_KEYSTORE_PASSWORD" -alias "$OSS_KEY_ALIAS" >/dev/null
+          echo "Stable OSS signing key verified."
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
