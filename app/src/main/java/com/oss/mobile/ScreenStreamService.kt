@@ -19,7 +19,7 @@ import android.widget.Toast
 import com.pedro.common.ConnectChecker
 import com.pedro.encoder.input.sources.audio.InternalAudioSource
 import com.pedro.encoder.input.sources.audio.MicrophoneSource
-import com.pedro.encoder.input.sources.audio.MixAudioSource
+import com.oss.mobile.audio.OssAudioMixerSource
 import com.pedro.encoder.input.sources.video.NoVideoSource
 import com.pedro.encoder.input.sources.video.ScreenSource
 import com.pedro.library.generic.GenericStream
@@ -182,7 +182,7 @@ class ScreenStreamService : Service(), ConnectChecker {
                     if (Build.VERSION.SDK_INT < 29) {
                         throw IllegalStateException("Audio internal memerlukan Android 10+")
                     }
-                    MixAudioSource(projection!!)
+                    OssAudioMixerSource(projection!!)
                 }
                 else -> MicrophoneSource()
             }
@@ -294,7 +294,7 @@ class ScreenStreamService : Service(), ConnectChecker {
 
         when (audioInput) {
             is MicrophoneSource -> audioInput.setPreferredDevice(wiredMic)
-            is MixAudioSource -> audioInput.setPreferredDevice(wiredMic)
+            is OssAudioMixerSource -> audioInput.setPreferredMicrophoneDevice(wiredMic)
         }
     }
 
