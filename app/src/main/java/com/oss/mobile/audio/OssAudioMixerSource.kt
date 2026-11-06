@@ -7,13 +7,13 @@ import com.pedro.encoder.input.audio.GetMicrophoneData
 import com.pedro.encoder.input.sources.audio.AudioSource
 import com.pedro.encoder.input.sources.audio.InternalAudioSource
 import com.pedro.encoder.input.sources.audio.MicrophoneSource
+import java.util.ArrayDeque
+import kotlin.math.abs
 
 /**
  * Independent microphone + Android playback capture adapter for RootEncoder.
- *
- * The two capture sources keep their own AudioRecord pipelines. Only their
- * normalized PCM frames meet in AudioMixerCore; neither source writes directly
- * to the encoder.
+ * Each source has a bounded FIFO so callback scheduling jitter does not cause
+ * otherwise usable PCM frames to be discarded immediately.
  */
 class OssAudioMixerSource(
     mediaProjection: MediaProjection
@@ -27,8 +27,13 @@ class OssAudioMixerSource(
     private var output: GetMicrophoneData? = null
 
     private val frameLock = Any()
-    private var latestMicrophoneFrame: PcmAudioFrame? = null
-    private var latestInternalFrame: PcmAudioFrame? = null
+    private val microphoneFrames = ArrayDeque<PcmAudioFrame>()
+    private val internalFrames = ArrayDeque<PcmAudioFrame>()
+
+    private companion object {
+        const val MAX_QUEUED_FRAMES = 8
+        const val MAX_PAIR_DELTA_US = 150_000L
+    }
 
     override fun create(
         sampleRate: Int,
@@ -65,8 +70,8 @@ class OssAudioMixerSource(
     override fun start(getMicrophoneData: GetMicrophoneData) {
         output = getMicrophoneData
         synchronized(frameLock) {
-            latestMicrophoneFrame = null
-            latestInternalFrame = null
+            microphoneFrames.clear()
+            internalFrames.clear()
         }
 
         try {
@@ -100,41 +105,46 @@ class OssAudioMixerSource(
             timestampUs = frame.timeStamp
         )
 
-        val mixedFrame = synchronized(frameLock) {
-            if (sourceId == "microphone") {
-                latestMicrophoneFrame = pcm
-            } else {
-                latestInternalFrame = pcm
-            }
+        val mixedFrames = synchronized(frameLock) {
+            val queue = if (sourceId == "microphone") microphoneFrames else internalFrames
+            queue.addLast(pcm)
+            while (queue.size > MAX_QUEUED_FRAMES) queue.removeFirst()
 
-            val mic = latestMicrophoneFrame
-            val internal = latestInternalFrame
-            if (mic == null || internal == null) {
-                null
-            } else if (kotlin.math.abs(mic.timestampUs - internal.timestampUs) > 100_000L) {
-                // Do not combine frames from substantially different capture times.
-                if (mic.timestampUs < internal.timestampUs) latestMicrophoneFrame = null
-                else latestInternalFrame = null
-                null
-            } else {
-                val result = mixer.mix(
-                    mapOf("microphone" to mic, "internal" to internal),
-                    AudioOutputBus.LIVE
+            val ready = ArrayList<PcmAudioFrame>()
+            while (microphoneFrames.isNotEmpty() && internalFrames.isNotEmpty()) {
+                val mic = microphoneFrames.peekFirst()
+                val internal = internalFrames.peekFirst()
+                val delta = mic.timestampUs - internal.timestampUs
+
+                if (abs(delta) <= MAX_PAIR_DELTA_US) {
+                    microphoneFrames.removeFirst()
+                    internalFrames.removeFirst()
+                    val mixed = mixer.mix(
+                        mapOf("microphone" to mic, "internal" to internal),
+                        AudioOutputBus.LIVE
+                    )
+                    if (mixed != null) ready.add(mixed)
+                } else if (delta < 0L) {
+                    // The microphone frame is too old to pair with this playback frame.
+                    microphoneFrames.removeFirst()
+                } else {
+                    // The playback frame is too old to pair with this microphone frame.
+                    internalFrames.removeFirst()
+                }
+            }
+            ready
+        }
+
+        for (mixedFrame in mixedFrames) {
+            output?.inputPCMData(
+                Frame(
+                    mixedFrame.data,
+                    0,
+                    mixedFrame.data.size,
+                    mixedFrame.timestampUs
                 )
-                latestMicrophoneFrame = null
-                latestInternalFrame = null
-                result
-            }
-        } ?: return
-
-        output?.inputPCMData(
-            Frame(
-                mixedFrame.data,
-                0,
-                mixedFrame.data.size,
-                mixedFrame.timestampUs
             )
-        )
+        }
     }
 
     override fun stop() {
@@ -142,8 +152,8 @@ class OssAudioMixerSource(
         runCatching { microphoneSource.stop() }
         runCatching { internalSource.stop() }
         synchronized(frameLock) {
-            latestMicrophoneFrame = null
-            latestInternalFrame = null
+            microphoneFrames.clear()
+            internalFrames.clear()
         }
     }
 
