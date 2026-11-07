@@ -29,8 +29,10 @@ object SceneLayerOperations {
     fun moveToBack(document: SceneDocument, layerId: String): SceneDocument =
         moveToEdge(document, layerId, front = false)
 
-    fun remove(document: SceneDocument, layerId: String): SceneDocument =
-        document.copy(layers = document.layers.filterNot { it.id == layerId })
+    fun remove(document: SceneDocument, layerId: String): SceneDocument {
+        if (document.layers.none { it.id == layerId }) return document
+        return document.copy(layers = document.layers.filterNot { it.id == layerId })
+    }
 
     fun toggleVisibility(document: SceneDocument, layerId: String): SceneDocument =
         document.copy(layers = document.layers.map {
