@@ -3,7 +3,6 @@ package com.oss.mobile
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import com.pedro.encoder.input.gl.render.filters.`object`.ImageFilterRender
 import com.pedro.encoder.input.gl.render.filters.BaseFilterRender
 
 /**
@@ -34,14 +33,20 @@ class StaticImageOverlayModule : OverlaySourceModule {
             drawable.draw(canvas)
         }
 
-        val renderer = ImageFilterRender()
+        val renderer = SceneImageFilterRender()
         renderer.setImage(bitmap)
         val canvasAspect = 720f / 1280f
         val imageAspect = bitmap.width.toFloat() / bitmap.height.toFloat()
-        val heightPercent = config.widthPercent * canvasAspect / imageAspect
-        renderer.setScale(config.widthPercent, heightPercent.coerceAtMost(100f))
-        renderer.setPosition(config.xPercent, config.yPercent)
-        renderer.alpha = config.opacity
+        val heightPercent = (config.widthPercent * canvasAspect / imageAspect).coerceAtMost(100f)
+        renderer.updateSceneTransform(
+            SceneTransform(
+                x = config.xPercent / 100f,
+                y = config.yPercent / 100f,
+                width = config.widthPercent / 100f,
+                height = heightPercent / 100f,
+                opacity = config.opacity
+            )
+        )
         return renderer
     }
 }
