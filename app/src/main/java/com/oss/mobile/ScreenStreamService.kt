@@ -29,6 +29,7 @@ import com.oss.mobile.diagnostics.OssDiagnostics
 import com.pedro.encoder.input.sources.video.NoVideoSource
 import com.pedro.encoder.input.sources.video.ScreenSource
 import com.pedro.library.generic.GenericStream
+import com.pedro.library.util.FpsListener
 
 /**
  * First RTMP proof-of-concept: captures the device display after explicit
@@ -66,6 +67,7 @@ class ScreenStreamService : Service(), ConnectChecker {
     private var userRequestedStop = false
     private var lastReconnectAttemptAt = 0L
     private var lastDiagnosticBitrateAt = 0L
+    @Volatile private var latestVideoFps: Int? = null
     private val diagnosticsHandler = Handler(Looper.getMainLooper())
     private val systemDiagnosticTask = object : Runnable {
         override fun run() {
@@ -240,6 +242,11 @@ class ScreenStreamService : Service(), ConnectChecker {
             // MediaProjection, screen capture, or the audio pipeline.
             output.getStreamClient().setReTries(MAX_RECONNECT_ATTEMPTS)
             stream = output
+            output.setFpsListener(object : FpsListener.Callback {
+                override fun onFps(fps: Int) {
+                    latestVideoFps = fps
+                }
+            })
             diagnosticsHandler.post(systemDiagnosticTask)
             val isMixedAudio = audioMode == AUDIO_MODE_MIX
             val prepared = output.prepareVideo(720, 1280, 1_800_000, rotation = 0) &&
@@ -347,6 +354,18 @@ class ScreenStreamService : Service(), ConnectChecker {
             val thermal = if (Build.VERSION.SDK_INT >= 29) {
                 (getSystemService(POWER_SERVICE) as android.os.PowerManager).currentThermalStatus
             } else -1
+            val client = stream?.getStreamClient()
+            val videoFps = latestVideoFps
+            val streamMetrics = if (client != null) mapOf(
+                "videoFps" to (videoFps?.toString() ?: "unavailable"),
+                "sentVideoFrames" to client.getSentVideoFrames().toString(),
+                "droppedVideoFrames" to client.getDroppedVideoFrames().toString(),
+                "sentAudioFrames" to client.getSentAudioFrames().toString(),
+                "droppedAudioFrames" to client.getDroppedAudioFrames().toString(),
+                "streamQueueBytes" to client.getCacheSize().toString(),
+                "streamQueueItems" to client.getItemsInCache().toString(),
+                "streamCongested" to client.hasCongestion().toString()
+            ) else emptyMap()
             OssDiagnostics.center.record(
                 DiagnosticCategory.SYSTEM,
                 when {
@@ -362,7 +381,7 @@ class ScreenStreamService : Service(), ConnectChecker {
                     "appPssKb" to pssKb.toString(),
                     "thermalStatus" to thermal.toString(),
                     "thermalStatusName" to thermalStatusName(thermal)
-                )
+                ) + streamMetrics
             )
         } catch (error: Exception) {
             OssDiagnostics.center.record(DiagnosticCategory.SYSTEM, DiagnosticSeverity.WARNING, "SYSTEM_SAMPLE_FAILED", error.javaClass.simpleName)
@@ -446,6 +465,7 @@ class ScreenStreamService : Service(), ConnectChecker {
             // Best-effort cleanup after partial initialization.
         }
         stream = null
+        latestVideoFps = null
         mixerSource = null
         pendingPreview = null
         releaseProjection()
