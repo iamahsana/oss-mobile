@@ -1,7 +1,8 @@
 package com.oss.mobile
 
 import android.content.Context
-import android.graphics.BitmapFactory
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import com.pedro.encoder.input.gl.render.filters.`object`.ImageFilterRender
 import com.pedro.encoder.input.gl.render.filters.BaseFilterRender
 
@@ -23,12 +24,18 @@ class StaticImageOverlayModule : OverlaySourceModule {
         configuration: Map<String, String>
     ): BaseFilterRender {
         val config = StaticImageLayerConfig.from(configuration)
-        val bitmap = BitmapFactory.decodeResource(context.resources, config.resourceId)
-            ?: throw IllegalArgumentException("Unable to decode image resource undefined")
+        val drawable = context.getDrawable(config.resourceId)
+            ?: throw IllegalArgumentException("Image resource not found: ${config.resourceId}")
+        val intrinsicWidth = drawable.intrinsicWidth.takeIf { it > 0 } ?: 256
+        val intrinsicHeight = drawable.intrinsicHeight.takeIf { it > 0 } ?: 256
+        val bitmap = Bitmap.createBitmap(intrinsicWidth, intrinsicHeight, Bitmap.Config.ARGB_8888)
+        Canvas(bitmap).also { canvas ->
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
+        }
 
         val renderer = ImageFilterRender()
         renderer.setImage(bitmap)
-        val output = context.resources.displayMetrics
         val canvasAspect = 720f / 1280f
         val imageAspect = bitmap.width.toFloat() / bitmap.height.toFloat()
         val heightPercent = config.widthPercent * canvasAspect / imageAspect

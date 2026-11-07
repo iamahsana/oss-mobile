@@ -47,6 +47,7 @@ class MainActivity : Activity() {
     private lateinit var sceneList: LinearLayout
     private lateinit var previewLabel: TextView
     private lateinit var previewView: TextureView
+    private lateinit var testImageOverlay: CheckBox
     private var streamService: ScreenStreamService? = null
     private var serviceBound = false
     private val streamConnection = object : ServiceConnection {
@@ -347,6 +348,14 @@ class MainActivity : Activity() {
             }
         }
         previewCard.addView(previewContainer)
+        testImageOverlay = CheckBox(this).apply {
+            text = "Temporary static image overlay test"
+            textSize = 12f
+            setTextColor(0xFFDCE8F0.toInt())
+            buttonTintList = android.content.res.ColorStateList.valueOf(0xFF61D9F4.toInt())
+            isChecked = false
+        }
+        previewCard.addView(testImageOverlay)
         page.addView(previewCard)
 
         val metricsCard = makeCard()
@@ -803,6 +812,7 @@ class MainActivity : Activity() {
             putExtra(ScreenStreamService.EXTRA_RESULT_DATA, data)
             putExtra(ScreenStreamService.EXTRA_ENDPOINT, endpoint)
             putExtra(ScreenStreamService.EXTRA_AUDIO_MODE, selectedAudioMode)
+            putExtra(ScreenStreamService.EXTRA_TEST_IMAGE_OVERLAY, testImageOverlay.isChecked)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent)
