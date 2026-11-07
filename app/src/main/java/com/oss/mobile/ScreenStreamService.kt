@@ -208,9 +208,8 @@ class ScreenStreamService : Service(), ConnectChecker {
             }
 
             val audioMode = intent.getStringExtra(EXTRA_AUDIO_MODE) ?: AUDIO_MODE_MICROPHONE
-            OssDiagnostics.center.beginSession("stream:$audioMode")
-            OssDiagnostics.center.record(DiagnosticCategory.APP, DiagnosticSeverity.INFO, "STREAM_INIT", "Stream initialization started", mapOf("audioMode" to audioMode, "sdk" to Build.VERSION.SDK_INT.toString()))
             AudioDiagnostics.beginCaptureSession(audioMode)
+            OssDiagnostics.center.record(DiagnosticCategory.APP, DiagnosticSeverity.INFO, "STREAM_INIT", "Stream initialization started", mapOf("audioMode" to audioMode, "sdk" to Build.VERSION.SDK_INT.toString()))
             AudioDiagnostics.add("Android SDK=${Build.VERSION.SDK_INT}; selectedMode=$audioMode")
             startAudioRecordingDiagnostics()
             val rawAudioInput = when (audioMode) {
