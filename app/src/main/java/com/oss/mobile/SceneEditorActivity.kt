@@ -11,7 +11,6 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.IBinder
 import android.view.Gravity
-import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
@@ -72,8 +71,7 @@ class SceneEditorActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        val back = makeButton("‹", 42) { finish() }
-        header.addView(back, LinearLayout.LayoutParams(dp(46), dp(44)))
+        header.addView(makeButton("‹", 42) { finish() }, LinearLayout.LayoutParams(dp(46), dp(44)))
         titleView = TextView(this).apply {
             text = document.name
             textSize = 17f
@@ -97,7 +95,6 @@ class SceneEditorActivity : Activity() {
             setScene(document)
             onDocumentChanged = { updated ->
                 document = updated
-                // Publish transforms immediately. The GL renderer coalesces pointer updates.
                 val applied = streamService?.applySceneDocument(updated) == true
                 statusView.text = if (applied) {
                     "Perubahan sedang diterapkan ke LIVE"
@@ -122,29 +119,46 @@ class SceneEditorActivity : Activity() {
             bottomMargin = dp(10)
         })
 
-        val firstRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-        firstRow.addView(makeButton("＋ Gambar uji", 12) { addTestImage() },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(5) })
-        firstRow.addView(makeButton("Layers", 12) { showLayers() },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(5) })
-        root.addView(firstRow)
+        val addRow = actionRow()
+        addRow.addView(makeButton("＋ Gambar uji", 12) { addTestImage() },
+            weightedParams(end = dp(5)))
+        addRow.addView(makeButton("Layers", 12) { showLayers() },
+            weightedParams(start = dp(5)))
+        root.addView(addRow)
 
-        val secondRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-        secondRow.addView(makeButton("Tampilkan / sembunyikan", 11) { toggleVisibility() },
-            LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(5) })
-        secondRow.addView(makeButton("Kunci / buka", 11) { toggleLock() },
-            LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginStart = dp(5) })
-        secondRow.addView(makeButton("Hapus", 11) { deleteSelected() },
-            LinearLayout.LayoutParams(0, dp(44), 0.7f).apply { marginStart = dp(5) })
-        root.addView(secondRow)
+        val editRow = actionRow()
+        editRow.addView(makeButton("Tampilkan / sembunyikan", 10) { toggleVisibility() },
+            weightedParams(end = dp(5)))
+        editRow.addView(makeButton("Kunci / buka", 10) { toggleLock() },
+            weightedParams(start = dp(5), end = dp(5)))
+        editRow.addView(makeButton("Hapus", 10) { deleteSelected() },
+            weightedParams(start = dp(5), weight = 0.7f))
+        root.addView(editRow)
+
+        val orderRow = actionRow()
+        orderRow.addView(makeButton("Duplikat", 11) { duplicateSelected() }, weightedParams(end = dp(5)))
+        orderRow.addView(makeButton("Ke depan", 11) { moveSelectedToFront() },
+            weightedParams(start = dp(5), end = dp(5)))
+        orderRow.addView(makeButton("Ke belakang", 11) { moveSelectedToBack() },
+            weightedParams(start = dp(5)))
+        root.addView(orderRow)
 
         setContentView(root)
+    }
+
+    private fun actionRow() = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER
+        setPadding(0, dp(3), 0, dp(3))
+    }
+
+    private fun weightedParams(
+        start: Int = 0,
+        end: Int = 0,
+        weight: Float = 1f
+    ) = LinearLayout.LayoutParams(0, dp(44), weight).apply {
+        marginStart = start
+        marginEnd = end
     }
 
     private fun addTestImage() {
@@ -154,19 +168,10 @@ class SceneEditorActivity : Activity() {
             moduleId = TEST_IMAGE_MODULE,
             displayName = "Image ${document.layers.size + 1}",
             zIndex = nextZ,
-            transform = SceneTransform(
-                x = 0.12f,
-                y = 0.12f,
-                width = 0.46f,
-                height = 0.129f
-            ),
-            configuration = mapOf(
-                "resource_id" to R.drawable.oss_test_overlay.toString()
-            )
+            transform = SceneTransform(x = 0.12f, y = 0.12f, width = 0.46f, height = 0.129f),
+            configuration = mapOf("resource_id" to R.drawable.oss_test_overlay.toString())
         )
-        document = document.copy(layers = document.layers + layer)
-        editor.setScene(document, layer.id)
-        streamService?.applySceneDocument(document)
+        updateDocument(document.copy(layers = document.layers + layer), layer.id)
         statusView.text = "Gambar uji ditambahkan. Geser, ubah ukuran, atau putar."
     }
 
@@ -187,42 +192,60 @@ class SceneEditorActivity : Activity() {
         }.toTypedArray()
         AlertDialog.Builder(this)
             .setTitle("Pilih layer")
-            .setItems(labels) { _, index ->
-                editor.selectLayer(layers[index].id)
-            }
+            .setItems(labels) { _, index -> editor.selectLayer(layers[index].id) }
             .setNegativeButton("Tutup", null)
             .show()
     }
 
     private fun toggleVisibility() {
-        val selected = editor.selectedLayer() ?: return noSelection()
-        document = document.copy(layers = document.layers.map {
-            if (it.id == selected.id) it.copy(visible = !it.visible) else it
-        })
-        editor.setScene(document, selected.id)
-        streamService?.applySceneDocument(document)
+        val selected = requireSelection() ?: return
+        updateDocument(SceneLayerOperations.toggleVisibility(document, selected.id), selected.id)
     }
 
     private fun toggleLock() {
-        val selected = editor.selectedLayer() ?: return noSelection()
-        document = document.copy(layers = document.layers.map {
-            if (it.id == selected.id) it.copy(locked = !it.locked) else it
-        })
-        editor.setScene(document, selected.id)
+        val selected = requireSelection() ?: return
+        updateDocument(SceneLayerOperations.toggleLock(document, selected.id), selected.id)
         statusView.text = if (selected.locked) "Layer dibuka." else "Layer dikunci."
-        streamService?.applySceneDocument(document)
+    }
+
+    private fun duplicateSelected() {
+        val selected = requireSelection() ?: return
+        val updated = SceneLayerOperations.duplicate(document, selected.id)
+        val copy = updated.layers.firstOrNull { it.id !in document.layers.map(SceneLayer::id) }
+        if (copy != null) {
+            updateDocument(updated, copy.id)
+            statusView.text = "Layer berhasil diduplikasi."
+        }
+    }
+
+    private fun moveSelectedToFront() {
+        val selected = requireSelection() ?: return
+        updateDocument(SceneLayerOperations.moveToFront(document, selected.id), selected.id)
+        statusView.text = "Layer dipindahkan ke depan."
+    }
+
+    private fun moveSelectedToBack() {
+        val selected = requireSelection() ?: return
+        updateDocument(SceneLayerOperations.moveToBack(document, selected.id), selected.id)
+        statusView.text = "Layer dipindahkan ke belakang."
     }
 
     private fun deleteSelected() {
-        val selected = editor.selectedLayer() ?: return noSelection()
-        document = document.copy(layers = document.layers.filterNot { it.id == selected.id })
-        editor.setScene(document, null)
-        streamService?.applySceneDocument(document)
+        val selected = requireSelection() ?: return
+        updateDocument(SceneLayerOperations.remove(document, selected.id), null)
         statusView.text = "Layer dihapus."
     }
 
-    private fun noSelection() {
-        Toast.makeText(this, "Pilih layer terlebih dahulu.", Toast.LENGTH_SHORT).show()
+    private fun requireSelection(): SceneLayer? {
+        val selected = editor.selectedLayer()
+        if (selected == null) Toast.makeText(this, "Pilih layer terlebih dahulu.", Toast.LENGTH_SHORT).show()
+        return selected
+    }
+
+    private fun updateDocument(updated: SceneDocument, selectedId: String?) {
+        document = updated
+        editor.setScene(document, selectedId)
+        streamService?.applySceneDocument(document)
     }
 
     private fun saveScene() {
