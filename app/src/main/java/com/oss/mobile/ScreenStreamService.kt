@@ -187,7 +187,6 @@ class ScreenStreamService : Service(), ConnectChecker {
             lastReconnectAttemptAt = 0L
             startAsForeground()
             diagnosticsHandler.removeCallbacks(systemDiagnosticTask)
-            diagnosticsHandler.post(systemDiagnosticTask)
             sendStatus("Menyiapkan encoder dan screen capture…")
             val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             projection = manager.getMediaProjection(resultCode, resultData)
@@ -242,6 +241,7 @@ class ScreenStreamService : Service(), ConnectChecker {
             // MediaProjection, screen capture, or the audio pipeline.
             output.getStreamClient().setReTries(MAX_RECONNECT_ATTEMPTS)
             stream = output
+            diagnosticsHandler.post(systemDiagnosticTask)
             val isMixedAudio = audioMode == AUDIO_MODE_MIX
             val prepared = output.prepareVideo(720, 1280, 1_800_000, rotation = 0) &&
                 output.prepareAudio(
