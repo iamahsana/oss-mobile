@@ -6,9 +6,8 @@ import com.pedro.encoder.input.gl.render.filters.BaseFilterRender
 /**
  * Turns one renderer-independent SceneDocument into RootEncoder compositor layers.
  *
- * A renderer is reused while its layer ID, source module, and module configuration remain
- * unchanged. Geometry is published separately through SceneTransformTarget, so dragging an
- * object does not recreate its bitmap/renderer or rebuild the GL filter chain.
+ * Renderers are reused for geometry-only edits. Structural changes create fresh renderers
+ * because RootEncoder releases a filter when it is removed from its GL chain.
  */
 class SceneRendererController(
     context: Context,
@@ -48,16 +47,19 @@ class SceneRendererController(
             }
         }
 
+        val currentSignatures = activeSources.map { (id, source) ->
+            SceneRendererSignature(id, source.moduleId, source.configuration)
+        }
+        val canReuseExistingPrefix = canReuseSceneRendererPrefix(currentSignatures, visibleLayers)
+
         val nextSources = linkedMapOf<String, ActiveSource>()
         val compositorLayers = visibleLayers.map { layer ->
-            val previous = activeSources[layer.id]
-            val canReuse = previous != null &&
-                previous.moduleId == layer.moduleId &&
-                previous.configuration == layer.configuration
-
-            val renderer = if (canReuse) {
-                previous!!.renderer
+            val index = nextSources.size
+            val renderer = if (canReuseExistingPrefix && index < activeSources.size) {
+                activeSources.values.elementAt(index).renderer
             } else {
+                // Reuse is safe only for an unchanged ordered prefix. Every other structural
+                // change gets fresh renderers because RootEncoder releases removed filters.
                 modulesById.getValue(layer.moduleId).createRenderer(appContext, layer.configuration)
             }
 

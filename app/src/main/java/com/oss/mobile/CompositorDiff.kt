@@ -21,3 +21,11 @@ internal fun <T : Any> compositorAppendDelta(
 
     return desired.drop(current.size)
 }
+
+/** True when a structural rebuild would attempt to reattach an already-owned renderer. */
+internal fun <T : Any> compositorHasRendererOverlap(
+    current: List<Pair<String, T>>,
+    desired: List<Pair<String, T>>
+): Boolean = current.any { (_, oldRenderer) ->
+    desired.any { (_, newRenderer) -> oldRenderer === newRenderer }
+}
