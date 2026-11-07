@@ -404,6 +404,23 @@ class MainActivity : Activity() {
             setPadding(0, dp(8), 0, 0)
         }
         sceneCard.addView(sceneList)
+        val editScene = Button(this).apply {
+            text = "Edit selected scene"
+            isAllCaps = false
+            textSize = 13f
+            setTextColor(0xFF07131B.toInt())
+            background = roundedBackground(0xFF61D9F4.toInt(), 12)
+            setOnClickListener {
+                val editorIntent = Intent(this@MainActivity, SceneEditorActivity::class.java).apply {
+                    putExtra(SceneEditorActivity.EXTRA_SCENE_ID, "studio_scene_$selectedScene")
+                    putExtra(SceneEditorActivity.EXTRA_SCENE_NAME, scenes.getOrElse(selectedScene) { "Scene" })
+                }
+                startActivity(editorIntent)
+            }
+        }
+        sceneCard.addView(editScene, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(48)
+        ).apply { topMargin = dp(8) })
         page.addView(sceneCard)
 
         val audioCard = makeCard()
@@ -822,6 +839,7 @@ class MainActivity : Activity() {
             putExtra(ScreenStreamService.EXTRA_ENDPOINT, endpoint)
             putExtra(ScreenStreamService.EXTRA_AUDIO_MODE, selectedAudioMode)
             putExtra(ScreenStreamService.EXTRA_TEST_IMAGE_OVERLAY, testImageOverlay.isChecked)
+            putExtra(ScreenStreamService.EXTRA_SCENE_ID, "studio_scene_$selectedScene")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent)
