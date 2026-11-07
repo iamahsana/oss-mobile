@@ -77,11 +77,11 @@ class MainActivity : Activity() {
                 val bitrate = metrics.bitrateBps.toLongOrNull()?.let { "%.2f Mbps".format(it / 1_000_000.0) } ?: "—"
                 buildString {
                     append(if (metrics.connected) "● RTMP CONNECTED" else "○ RTMP NOT CONNECTED")
-                    append("\\nFPS: ${metrics.fps}    Bitrate: $bitrate")
-                    append("\\nVideo frames: ${metrics.sentVideoFrames} sent / ${metrics.droppedVideoFrames} dropped")
-                    append("\\nAudio frames: ${metrics.sentAudioFrames} sent / ${metrics.droppedAudioFrames} dropped")
-                    append("\\nCache: ${metrics.cacheSize}    Queue: ${metrics.queuedItems}")
-                    append("\\nCongestion: ${if (metrics.congested) "YES" else "NO"}")
+                    append("\nFPS: ${metrics.fps}    Bitrate: $bitrate")
+                    append("\nVideo frames: ${metrics.sentVideoFrames} sent / ${metrics.droppedVideoFrames} dropped")
+                    append("\nAudio frames: ${metrics.sentAudioFrames} sent / ${metrics.droppedAudioFrames} dropped")
+                    append("\nCache: ${metrics.cacheSize}    Queue: ${metrics.queuedItems}")
+                    append("\nCongestion: ${if (metrics.congested) "YES" else "NO"}")
                 }
             }
             metricsHandler.postDelayed(this, 1000L)
