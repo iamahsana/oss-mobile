@@ -58,6 +58,7 @@ class ScreenStreamService : Service(), ConnectChecker {
         const val EXTRA_ENDPOINT = "stream_endpoint"
         const val EXTRA_AUDIO_MODE = "audio_mode"
         const val EXTRA_TEST_IMAGE_OVERLAY = "test_image_overlay"
+        const val EXTRA_SCENE_ID = "scene_document_id"
         const val AUDIO_MODE_MICROPHONE = "microphone"
         const val AUDIO_MODE_INTERNAL = "internal"
         const val AUDIO_MODE_MIX = "mix"
@@ -140,6 +141,13 @@ class ScreenStreamService : Service(), ConnectChecker {
      */
     fun setCompositorLayers(layers: List<CompositorLayer>) {
         overlayCompositor?.setLayers(layers)
+    }
+
+    /** Apply the same scene document currently being edited to the live GL renderer. */
+    fun applySceneDocument(document: SceneDocument): Boolean {
+        val controller = sceneRendererController ?: return false
+        controller.apply(document)
+        return true
     }
 
     fun clearCompositorLayers() {
@@ -319,7 +327,13 @@ class ScreenStreamService : Service(), ConnectChecker {
                 listOf(StaticImageOverlayModule()),
                 overlayCompositor!!
             )
-            if (intent.getBooleanExtra(EXTRA_TEST_IMAGE_OVERLAY, false)) {
+            val savedSceneId = intent.getStringExtra(EXTRA_SCENE_ID)
+            val savedScene = savedSceneId?.let { id ->
+                runCatching { SceneDocumentRepository(this).load(id) }.getOrNull()
+            }
+            if (savedScene != null) {
+                sceneRendererController?.apply(savedScene)
+            } else if (intent.getBooleanExtra(EXTRA_TEST_IMAGE_OVERLAY, false)) {
                 applyTestImageOverlay(true)
             }
             output.getGlInterface().setForceRender(true, 15)
