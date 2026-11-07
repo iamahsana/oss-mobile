@@ -53,6 +53,8 @@ class MainActivity : Activity() {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             streamService = (binder as? ScreenStreamService.LocalBinder)?.getService()
             applyCapturedContentVisibility(streamService?.isCapturedContentVisible() == true)
+            metricsHandler.removeCallbacks(metricsRefreshTask)
+            metricsHandler.post(metricsRefreshTask)
         }
         override fun onServiceDisconnected(name: ComponentName?) {
             streamService = null
@@ -63,6 +65,28 @@ class MainActivity : Activity() {
     private lateinit var streamStatus: TextView
     private var statusReceiverRegistered = false
     private var pendingDiagnosticArchive: File? = null
+    private lateinit var liveMetricsText: TextView
+    private val metricsHandler = Handler(Looper.getMainLooper())
+    private val metricsRefreshTask = object : Runnable {
+        override fun run() {
+            if (!::liveMetricsText.isInitialized) return
+            val metrics = streamService?.liveStreamMetrics()
+            liveMetricsText.text = if (metrics == null) {
+                "Menunggu koneksi streaming…"
+            } else {
+                val bitrate = metrics.bitrateBps.toLongOrNull()?.let { "%.2f Mbps".format(it / 1_000_000.0) } ?: "—"
+                buildString {
+                    append(if (metrics.connected) "● RTMP CONNECTED" else "○ RTMP NOT CONNECTED")
+                    append("\nFPS: ${metrics.fps}    Bitrate: $bitrate")
+                    append("\nVideo frames: ${metrics.sentVideoFrames} sent / ${metrics.droppedVideoFrames} dropped")
+                    append("\nAudio frames: ${metrics.sentAudioFrames} sent / ${metrics.droppedAudioFrames} dropped")
+                    append("\nCache: ${metrics.cacheSize}    Queue: ${metrics.queuedItems}")
+                    append("\nCongestion: ${if (metrics.congested) "YES" else "NO"}")
+                }
+            }
+            metricsHandler.postDelayed(this, 1000L)
+        }
+    }
 
     private val statusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -159,6 +183,7 @@ class MainActivity : Activity() {
             statusReceiverRegistered = true
         }
         bindStreamService()
+        metricsHandler.post(metricsRefreshTask)
     }
 
     private fun bindStreamService() {
@@ -187,6 +212,7 @@ class MainActivity : Activity() {
     }
 
     override fun onStop() {
+        metricsHandler.removeCallbacks(metricsRefreshTask)
         if (serviceBound) {
             streamService?.detachPreview(previewView)
             unbindService(streamConnection)
@@ -322,6 +348,13 @@ class MainActivity : Activity() {
         }
         previewCard.addView(previewContainer)
         page.addView(previewCard)
+
+        val metricsCard = makeCard()
+        metricsCard.addView(makeText("LIVE STREAM HEALTH", 11f, 0xFF9FB2C1.toInt(), true))
+        liveMetricsText = makeText("Menunggu koneksi streaming…", 12f, 0xFFEAF2F8.toInt())
+        liveMetricsText.setPadding(0, dp(10), 0, 0)
+        metricsCard.addView(liveMetricsText)
+        page.addView(metricsCard)
 
         val sceneCard = makeCard()
         val sceneHeader = LinearLayout(this).apply {

@@ -135,3 +135,17 @@ Subsystems must not depend on the report exporter or UI.
 5. Implement redaction, JSON serialization, manifest, checksums, and ZIP export.
 6. Add a simple Diagnostics screen and user-initiated share action.
 7. Add unit tests for bounds, timestamps, redaction, schema stability, and export integrity.
+
+
+## In-app live stream health panel
+
+The Studio exposes a read-only, one-second snapshot of RootEncoder transport metrics while the screen is open:
+
+- RTMP connection state
+- Latest encoder FPS callback value
+- Latest reported bitrate
+- Sent and dropped audio/video frame counters
+- Stream cache size and queued item count
+- Congestion flag
+
+The panel reads a lightweight snapshot from the bound streaming service. It does not change encoder settings, audio routing, capture cadence, or reconnect behavior. Metrics remain unavailable until RootEncoder reports them; unavailable values are not shown as zero. UI polling is stopped when the Activity leaves the foreground.

@@ -38,6 +38,19 @@ import com.pedro.library.util.FpsListener
  * This initial version uses the microphone as audio input. Internal playback
  * audio, persistent notification controls and reconnect logic are later tasks.
  */
+data class LiveStreamMetrics(
+    val connected: Boolean,
+    val fps: String,
+    val bitrateBps: String,
+    val sentVideoFrames: String,
+    val droppedVideoFrames: String,
+    val sentAudioFrames: String,
+    val droppedAudioFrames: String,
+    val cacheSize: String,
+    val queuedItems: String,
+    val congested: Boolean
+)
+
 class ScreenStreamService : Service(), ConnectChecker {
     companion object {
         const val EXTRA_RESULT_CODE = "projection_result_code"
@@ -68,6 +81,8 @@ class ScreenStreamService : Service(), ConnectChecker {
     private var lastReconnectAttemptAt = 0L
     private var lastDiagnosticBitrateAt = 0L
     @Volatile private var latestVideoFps: Int? = null
+    @Volatile private var latestBitrateBps: Long? = null
+    @Volatile private var rtmpConnected = false
     private val diagnosticsHandler = Handler(Looper.getMainLooper())
     private val systemDiagnosticTask = object : Runnable {
         override fun run() {
@@ -79,6 +94,22 @@ class ScreenStreamService : Service(), ConnectChecker {
     private var audioRecordingCallback: AudioManager.AudioRecordingCallback? = null
     private var diagnosticAudioManager: AudioManager? = null
     @Volatile private var mixerSource: OssBufferedAudioMixerSource? = null
+
+    fun liveStreamMetrics(): LiveStreamMetrics {
+        val client = stream?.getStreamClient()
+        return LiveStreamMetrics(
+            connected = rtmpConnected,
+            fps = latestVideoFps?.toString() ?: "unavailable",
+            bitrateBps = latestBitrateBps?.toString() ?: "unavailable",
+            sentVideoFrames = client?.getSentVideoFrames()?.toString() ?: "unavailable",
+            droppedVideoFrames = client?.getDroppedVideoFrames()?.toString() ?: "unavailable",
+            sentAudioFrames = client?.getSentAudioFrames()?.toString() ?: "unavailable",
+            droppedAudioFrames = client?.getDroppedAudioFrames()?.toString() ?: "unavailable",
+            cacheSize = client?.getCacheSize()?.toString() ?: "unavailable",
+            queuedItems = client?.getItemsInCache()?.toString() ?: "unavailable",
+            congested = client?.hasCongestion() ?: false
+        )
+    }
 
     fun isMixerAvailable(): Boolean = mixerSource != null
     fun setMixerChannelGain(channelId: String, gain: Float): Boolean =
@@ -473,6 +504,8 @@ class ScreenStreamService : Service(), ConnectChecker {
         }
         stream = null
         latestVideoFps = null
+        latestBitrateBps = null
+        rtmpConnected = false
         mixerSource = null
         pendingPreview = null
         releaseProjection()
@@ -498,6 +531,8 @@ class ScreenStreamService : Service(), ConnectChecker {
         }
         stream = null
         latestVideoFps = null
+        latestBitrateBps = null
+        rtmpConnected = false
         mixerSource = null
         releaseProjection()
     }
@@ -521,12 +556,14 @@ class ScreenStreamService : Service(), ConnectChecker {
     }
 
     override fun onConnectionStarted(url: String) {
+        rtmpConnected = false
         OssDiagnostics.center.record(DiagnosticCategory.STREAM, DiagnosticSeverity.INFO, "RTMP_CONNECTING", "Connecting to RTMP endpoint; credentials omitted")
         updateNotification("Menghubungkan ke server RTMP…")
         sendStatus("Menghubungkan ke server RTMP…")
     }
 
     override fun onConnectionSuccess() {
+        rtmpConnected = true
         OssDiagnostics.center.record(DiagnosticCategory.STREAM, DiagnosticSeverity.INFO, "RTMP_CONNECTED", "RTMP connection established")
         lastReconnectAttemptAt = 0L
         updateNotification("Terhubung — streaming aktif")
@@ -534,11 +571,13 @@ class ScreenStreamService : Service(), ConnectChecker {
     }
 
     override fun onConnectionFailed(reason: String) {
+        rtmpConnected = false
         OssDiagnostics.center.record(DiagnosticCategory.STREAM, DiagnosticSeverity.ERROR, "RTMP_CONNECTION_FAILED", reason)
         attemptReconnect(reason)
     }
 
     override fun onNewBitrate(bitrate: Long) {
+        latestBitrateBps = bitrate
         val now = android.os.SystemClock.elapsedRealtime()
         if (now - lastDiagnosticBitrateAt >= 5000L) {
             lastDiagnosticBitrateAt = now
@@ -547,6 +586,7 @@ class ScreenStreamService : Service(), ConnectChecker {
     }
 
     override fun onDisconnect() {
+        rtmpConnected = false
         OssDiagnostics.center.record(DiagnosticCategory.STREAM, if (userRequestedStop) DiagnosticSeverity.INFO else DiagnosticSeverity.WARNING, "RTMP_DISCONNECTED", "RTMP connection disconnected", mapOf("requested" to userRequestedStop.toString()))
         if (!userRequestedStop) {
             attemptReconnect("Koneksi RTMP terputus")
