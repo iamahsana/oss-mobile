@@ -64,6 +64,10 @@ class DiagnosticCenterTest {
         assertNotNull(snapshot.session)
         assertEquals(session.sessionId, snapshot.events.last().sessionId)
         center.endSession("completed")
-        assertEquals(null, center.snapshot().session)
+        val completed = center.snapshot().session
+        assertNotNull(completed)
+        assertEquals(session.sessionId, completed?.sessionId)
+        assertEquals("completed", completed?.outcome)
+        assertNotNull(completed?.endedAtElapsedMs)
     }
 }

@@ -29,6 +29,7 @@ import com.oss.mobile.diagnostics.OssDiagnostics
 import com.pedro.encoder.input.sources.video.NoVideoSource
 import com.pedro.encoder.input.sources.video.ScreenSource
 import com.pedro.library.generic.GenericStream
+import com.pedro.library.util.FpsListener
 
 /**
  * First RTMP proof-of-concept: captures the device display after explicit
@@ -66,6 +67,7 @@ class ScreenStreamService : Service(), ConnectChecker {
     private var userRequestedStop = false
     private var lastReconnectAttemptAt = 0L
     private var lastDiagnosticBitrateAt = 0L
+    @Volatile private var latestVideoFps: Int? = null
     private val diagnosticsHandler = Handler(Looper.getMainLooper())
     private val systemDiagnosticTask = object : Runnable {
         override fun run() {
@@ -240,6 +242,11 @@ class ScreenStreamService : Service(), ConnectChecker {
             // MediaProjection, screen capture, or the audio pipeline.
             output.getStreamClient().setReTries(MAX_RECONNECT_ATTEMPTS)
             stream = output
+            output.setFpsListener(object : FpsListener.Callback {
+                override fun onFps(fps: Int) {
+                    latestVideoFps = fps
+                }
+            })
             diagnosticsHandler.post(systemDiagnosticTask)
             val isMixedAudio = audioMode == AUDIO_MODE_MIX
             val prepared = output.prepareVideo(720, 1280, 1_800_000, rotation = 0) &&
@@ -347,11 +354,12 @@ class ScreenStreamService : Service(), ConnectChecker {
             val thermal = if (Build.VERSION.SDK_INT >= 29) {
                 (getSystemService(POWER_SERVICE) as android.os.PowerManager).currentThermalStatus
             } else -1
+            val client = stream?.getStreamClient()
             OssDiagnostics.center.record(
                 DiagnosticCategory.SYSTEM,
                 when {
                     memory.lowMemory -> DiagnosticSeverity.WARNING
-                    Build.VERSION.SDK_INT >= 29 && thermal >= 4 -> DiagnosticSeverity.WARNING
+                    Build.VERSION.SDK_INT >= 29 && thermal >= android.os.PowerManager.THERMAL_STATUS_SEVERE -> DiagnosticSeverity.WARNING
                     else -> DiagnosticSeverity.INFO
                 },
                 "SYSTEM_HEALTH_SAMPLE",
@@ -360,12 +368,42 @@ class ScreenStreamService : Service(), ConnectChecker {
                     "availableMemoryBytes" to memory.availMem.toString(),
                     "lowMemory" to memory.lowMemory.toString(),
                     "appPssKb" to pssKb.toString(),
-                    "thermalStatus" to thermal.toString()
+                    "thermalStatus" to thermal.toString(),
+                    "thermalStatusName" to thermalStatusName(thermal)
                 )
             )
+            if (client != null) {
+                OssDiagnostics.center.record(
+                    DiagnosticCategory.VIDEO,
+                    DiagnosticSeverity.INFO,
+                    "VIDEO_STREAM_METRICS",
+                    "RootEncoder video and transport metrics",
+                    mapOf(
+                        "videoFps" to (latestVideoFps?.toString() ?: "unavailable"),
+                        "sentVideoFrames" to client.getSentVideoFrames().toString(),
+                        "droppedVideoFrames" to client.getDroppedVideoFrames().toString(),
+                        "sentAudioFrames" to client.getSentAudioFrames().toString(),
+                        "droppedAudioFrames" to client.getDroppedAudioFrames().toString(),
+                        "streamCacheSize" to client.getCacheSize().toString(),
+                        "streamQueueItems" to client.getItemsInCache().toString(),
+                        "streamCongested" to client.hasCongestion().toString()
+                    )
+                )
+            }
         } catch (error: Exception) {
             OssDiagnostics.center.record(DiagnosticCategory.SYSTEM, DiagnosticSeverity.WARNING, "SYSTEM_SAMPLE_FAILED", error.javaClass.simpleName)
         }
+    }
+
+    private fun thermalStatusName(status: Int): String = when (status) {
+        android.os.PowerManager.THERMAL_STATUS_NONE -> "NONE"
+        android.os.PowerManager.THERMAL_STATUS_LIGHT -> "LIGHT"
+        android.os.PowerManager.THERMAL_STATUS_MODERATE -> "MODERATE"
+        android.os.PowerManager.THERMAL_STATUS_SEVERE -> "SEVERE"
+        android.os.PowerManager.THERMAL_STATUS_CRITICAL -> "CRITICAL"
+        android.os.PowerManager.THERMAL_STATUS_EMERGENCY -> "EMERGENCY"
+        android.os.PowerManager.THERMAL_STATUS_SHUTDOWN -> "SHUTDOWN"
+        else -> "UNAVAILABLE"
     }
 
     private fun startAudioRecordingDiagnostics() {
@@ -434,6 +472,7 @@ class ScreenStreamService : Service(), ConnectChecker {
             // Best-effort cleanup after partial initialization.
         }
         stream = null
+        latestVideoFps = null
         mixerSource = null
         pendingPreview = null
         releaseProjection()
@@ -458,6 +497,7 @@ class ScreenStreamService : Service(), ConnectChecker {
         } catch (_: Exception) {
         }
         stream = null
+        latestVideoFps = null
         mixerSource = null
         releaseProjection()
     }

@@ -1,7 +1,7 @@
 # OSS Diagnostics Core Contract
 
 Status: initial implementation contract  
-Branch: `feature/diagnostics-core`
+Branch: `feature/diagnostics-session-health`
 
 ## Purpose
 
@@ -57,6 +57,7 @@ Never place secrets or arbitrary user-provided text in attributes.
 - Unique random session ID and report ID
 - OSS version/build and Android device metadata
 - Start/end monotonic timestamps and session outcome
+- The most recently completed session remains attached to the report after streaming stops
 - Selected capture modes and encoder configuration (non-secret fields only)
 
 ### Health snapshots
@@ -64,9 +65,10 @@ Never place secrets or arbitrary user-provided text in attributes.
 Collect at a modest interval and on important state changes:
 
 - Audio: source state, sample rate, channel count, RMS/peak, mute/enabled state, buffer underrun/overflow counters when available.
-- Video: capture/encoder FPS, resolution, dropped-frame counters when available.
+- Video/transport: RootEncoder FPS callback, sent/dropped audio and video frame counters, congestion state, cache size, and queued item count. These are sampled every 30 seconds; unavailable FPS is represented as "unavailable", not zero.
 - Stream: RTMP connection state, bitrate, reconnect count, connection duration.
 - System: app memory, available memory, CPU/load and thermal status only where supported without extra permissions.
+- Android thermal status uses platform-defined levels: NONE, LIGHT, MODERATE, SEVERE, CRITICAL, EMERGENCY, and SHUTDOWN. SEVERE and above are surfaced as warnings.
 
 Unavailable metrics must be represented as unavailable, never fabricated as zero.
 

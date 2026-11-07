@@ -25,7 +25,9 @@ data class DiagnosticEvent(
 data class DiagnosticSession(
     val sessionId: String,
     val startedAtElapsedMs: Long,
-    val label: String
+    val label: String,
+    val endedAtElapsedMs: Long? = null,
+    val outcome: String? = null
 )
 
 data class DiagnosticSnapshot(
@@ -51,6 +53,7 @@ class DiagnosticCenter(
     private val lock = Any()
     private val events = ArrayDeque<DiagnosticEvent>()
     private var activeSession: DiagnosticSession? = null
+    private var lastSession: DiagnosticSession? = null
     private var droppedEvents: Long = 0
 
     fun beginSession(label: String): DiagnosticSession = synchronized(lock) {
@@ -60,6 +63,7 @@ class DiagnosticCenter(
             label = redact(label)
         )
         activeSession = session
+        lastSession = null
         appendLocked(
             category = DiagnosticCategory.APP,
             severity = DiagnosticSeverity.INFO,
@@ -72,13 +76,15 @@ class DiagnosticCenter(
 
     fun endSession(outcome: String? = null) = synchronized(lock) {
         val session = activeSession ?: return@synchronized
+        val safeOutcome = outcome?.let(::redact)
         appendLocked(
             category = DiagnosticCategory.APP,
             severity = DiagnosticSeverity.INFO,
             code = "SESSION_ENDED",
             message = "Diagnostic session ended",
-            attributes = outcome?.let { mapOf("outcome" to redact(it)) } ?: emptyMap()
+            attributes = safeOutcome?.let { mapOf("outcome" to it) } ?: emptyMap()
         )
+        lastSession = session.copy(endedAtElapsedMs = clock(), outcome = safeOutcome)
         activeSession = null
     }
 
@@ -103,7 +109,7 @@ class DiagnosticCenter(
 
     fun snapshot(): DiagnosticSnapshot = synchronized(lock) {
         DiagnosticSnapshot(
-            session = activeSession,
+            session = activeSession ?: lastSession,
             events = events.toList(),
             droppedEventCount = droppedEvents
         )
@@ -111,6 +117,8 @@ class DiagnosticCenter(
 
     fun clear() = synchronized(lock) {
         events.clear()
+        activeSession = null
+        lastSession = null
         droppedEvents = 0
     }
 
