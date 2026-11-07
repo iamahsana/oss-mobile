@@ -2,10 +2,12 @@ package com.oss.mobile
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.util.SparseArray
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
@@ -63,6 +65,8 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         color = Color.rgb(88, 221, 255)
         strokeWidth = 1.5f * density
     }
+    private val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val imageCache = SparseArray<Bitmap>()
 
     private var document = SceneDocument(id = "editor", name = "Scene")
     private var selectedLayerId: String? = null
@@ -180,9 +184,16 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         val cy = rect.centerY()
         canvas.save()
         canvas.rotate(layer.transform.rotationDegrees, cx, cy)
-        layerPaint.color = if (selected) Color.argb(220, 39, 116, 151)
-            else Color.argb(175, 48, 82, 103)
-        canvas.drawRoundRect(rect, 6f * density, 6f * density, layerPaint)
+        val image = layer.configuration["resource_id"]?.toIntOrNull()?.let(::imageBitmap)
+        if (image != null && layer.moduleId == "oss.source.image.static") {
+            imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
+            canvas.drawBitmap(image, null, rect, imagePaint)
+            imagePaint.alpha = 255
+        } else {
+            layerPaint.color = if (selected) Color.argb(220, 39, 116, 151)
+                else Color.argb(175, 48, 82, 103)
+            canvas.drawRoundRect(rect, 6f * density, 6f * density, layerPaint)
+        }
         canvas.drawRoundRect(rect, 6f * density, 6f * density, if (selected) selectedStroke else layerStroke)
         val label = layer.displayName.take(24)
         val maxTextWidth = max(0f, rect.width() - 12f * density)
@@ -191,10 +202,29 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             android.text.TextUtils.ellipsize(label, android.text.TextPaint(labelPaint), maxTextWidth,
                 android.text.TextUtils.TruncateAt.END).toString()
         } else label
-        if (rect.width() > 28f * density && rect.height() > 20f * density) {
+        if (image == null && rect.width() > 28f * density && rect.height() > 20f * density) {
             canvas.drawText(display, cx, cy + labelPaint.textSize * 0.35f, labelPaint)
         }
         canvas.restore()
+    }
+
+    private fun imageBitmap(resourceId: Int): Bitmap? {
+        val cached = imageCache.get(resourceId)
+        if (cached != null && !cached.isRecycled) return cached
+        return try {
+            val drawable = context.getDrawable(resourceId) ?: return null
+            val bitmapWidth = drawable.intrinsicWidth.takeIf { it > 0 } ?: 256
+            val bitmapHeight = drawable.intrinsicHeight.takeIf { it > 0 } ?: 256
+            if (bitmapWidth.toLong() * bitmapHeight.toLong() > 16_777_216L) return null
+            val bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
+            val target = android.graphics.Canvas(bitmap)
+            drawable.setBounds(0, 0, bitmapWidth, bitmapHeight)
+            drawable.draw(target)
+            imageCache.put(resourceId, bitmap)
+            bitmap
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun drawHandles(canvas: Canvas, layer: SceneLayer, left: Float, top: Float, scale: Float) {
