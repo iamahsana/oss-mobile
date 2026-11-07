@@ -79,6 +79,7 @@ class ScreenStreamService : Service(), ConnectChecker {
     private var capturedContentVisible = false
     private var pendingPreview: TextureView? = null
     private var overlayCompositor: OverlayCompositor? = null
+    private var sceneRendererController: SceneRendererController? = null
     private var userRequestedStop = false
     private var lastReconnectAttemptAt = 0L
     private var lastDiagnosticBitrateAt = 0L
@@ -142,7 +143,7 @@ class ScreenStreamService : Service(), ConnectChecker {
     }
 
     fun clearCompositorLayers() {
-        overlayCompositor?.clear()
+        sceneRendererController?.clear() ?: overlayCompositor?.clear()
     }
 
     inner class LocalBinder : android.os.Binder() {
@@ -313,6 +314,11 @@ class ScreenStreamService : Service(), ConnectChecker {
             applyWiredHeadsetInput(rawAudioInput)
 
             overlayCompositor = OverlayCompositor(output.getGlInterface())
+            sceneRendererController = SceneRendererController(
+                this,
+                listOf(StaticImageOverlayModule()),
+                overlayCompositor!!
+            )
             if (intent.getBooleanExtra(EXTRA_TEST_IMAGE_OVERLAY, false)) {
                 applyTestImageOverlay(true)
             }
@@ -340,10 +346,21 @@ class ScreenStreamService : Service(), ConnectChecker {
     }
 
     private fun applyTestImageOverlay(enabled: Boolean) {
+        val controller = sceneRendererController ?: return
         if (enabled) {
-            val testRenderer = StaticImageOverlayModule().createRenderer(
-                this,
-                mapOf(
+            val testLayer = SceneLayer(
+                id = "device-test-static-image",
+                moduleId = "oss.source.image.static",
+                displayName = "Device test image",
+                zIndex = 10,
+                transform = SceneTransform(
+                    x = 0.05f,
+                    y = 0.05f,
+                    width = 0.46f,
+                    height = 0.1213f,
+                    opacity = 0.96f
+                ),
+                configuration = mapOf(
                     "resource_id" to R.drawable.oss_test_overlay.toString(),
                     "x_percent" to "5",
                     "y_percent" to "5",
@@ -351,23 +368,27 @@ class ScreenStreamService : Service(), ConnectChecker {
                     "opacity" to "0.96"
                 )
             )
-            overlayCompositor?.setLayers(
-                listOf(CompositorLayer("device-test-static-image", 10, testRenderer))
+            controller.apply(
+                SceneDocument(
+                    id = "device-test-scene",
+                    name = "Device test scene",
+                    layers = listOf(testLayer)
+                )
             )
             OssDiagnostics.center.record(
                 DiagnosticCategory.VIDEO,
                 DiagnosticSeverity.INFO,
                 "STATIC_IMAGE_TEST_ATTACHED",
-                "Temporary static image overlay attached or updated"
+                "Temporary static image scene applied through SceneDocument"
             )
             sendStatus("Static image overlay aktif.")
         } else {
-            overlayCompositor?.setLayers(emptyList())
+            controller.clear()
             OssDiagnostics.center.record(
                 DiagnosticCategory.VIDEO,
                 DiagnosticSeverity.INFO,
                 "STATIC_IMAGE_TEST_REMOVED",
-                "Temporary static image overlay removed"
+                "Temporary static image scene cleared"
             )
             sendStatus("Static image overlay dinonaktifkan.")
         }
@@ -544,6 +565,8 @@ class ScreenStreamService : Service(), ConnectChecker {
         OssDiagnostics.center.endSession("stopped")
         stopAudioRecordingDiagnostics()
         try {
+            sceneRendererController?.clear()
+            sceneRendererController = null
             overlayCompositor?.clear()
             overlayCompositor = null
             stream?.stopStream()
@@ -572,6 +595,8 @@ class ScreenStreamService : Service(), ConnectChecker {
         OssDiagnostics.center.endSession("service_destroyed")
         stopAudioRecordingDiagnostics()
         try {
+            sceneRendererController?.clear()
+            sceneRendererController = null
             overlayCompositor?.clear()
             overlayCompositor = null
             stream?.stopStream()
