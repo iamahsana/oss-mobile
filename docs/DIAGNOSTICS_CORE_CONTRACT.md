@@ -65,7 +65,7 @@ Never place secrets or arbitrary user-provided text in attributes.
 Collect at a modest interval and on important state changes:
 
 - Audio: source state, sample rate, channel count, RMS/peak, mute/enabled state, buffer underrun/overflow counters when available.
-- Video: capture/encoder FPS, resolution, dropped-frame counters when available. FPS and dropped-frame counters remain pending until a stable supported RootEncoder callback/counter is verified; unavailable metrics must not be represented as zero.
+- Video/transport: RootEncoder FPS callback, sent/dropped audio and video frame counters, congestion state, cache size, and queued item count. These are sampled every 30 seconds; unavailable FPS is represented as "unavailable", not zero.
 - Stream: RTMP connection state, bitrate, reconnect count, connection duration.
 - System: app memory, available memory, CPU/load and thermal status only where supported without extra permissions.
 - Android thermal status uses platform-defined levels: NONE, LIGHT, MODERATE, SEVERE, CRITICAL, EMERGENCY, and SHUTDOWN. SEVERE and above are surfaced as warnings.
