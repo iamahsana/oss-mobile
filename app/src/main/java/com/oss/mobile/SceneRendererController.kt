@@ -47,13 +47,10 @@ class SceneRendererController(
             }
         }
 
-        val canReuseExistingPrefix = activeSources.size <= visibleLayers.size &&
-            activeSources.entries.withIndex().all { (index, entry) ->
-                val layer = visibleLayers[index]
-                entry.key == layer.id &&
-                    entry.value.moduleId == layer.moduleId &&
-                    entry.value.configuration == layer.configuration
-            }
+        val currentSignatures = activeSources.map { (id, source) ->
+            SceneRendererSignature(id, source.moduleId, source.configuration)
+        }
+        val canReuseExistingPrefix = canReuseSceneRendererPrefix(currentSignatures, visibleLayers)
 
         val nextSources = linkedMapOf<String, ActiveSource>()
         val compositorLayers = visibleLayers.map { layer ->
