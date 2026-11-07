@@ -531,6 +531,8 @@ class ScreenStreamService : Service(), ConnectChecker {
         }
         stream = null
         latestVideoFps = null
+        latestBitrateBps = null
+        rtmpConnected = false
         mixerSource = null
         releaseProjection()
     }
