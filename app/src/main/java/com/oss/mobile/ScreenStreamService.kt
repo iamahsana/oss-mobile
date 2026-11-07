@@ -595,6 +595,8 @@ class ScreenStreamService : Service(), ConnectChecker {
         OssDiagnostics.center.endSession("service_destroyed")
         stopAudioRecordingDiagnostics()
         try {
+            sceneRendererController?.clear()
+            sceneRendererController = null
             overlayCompositor?.clear()
             overlayCompositor = null
             stream?.stopStream()
