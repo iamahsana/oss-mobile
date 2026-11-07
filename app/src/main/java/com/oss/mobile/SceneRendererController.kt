@@ -47,22 +47,22 @@ class SceneRendererController(
             }
         }
 
-        val desiredIds = visibleLayers.map { it.id }
-        val canReuseWholeScene = activeSources.keys.toList() == desiredIds &&
-            visibleLayers.all { layer ->
-                val previous = activeSources[layer.id]
-                previous != null &&
-                    previous.moduleId == layer.moduleId &&
-                    previous.configuration == layer.configuration
+        val canReuseExistingPrefix = activeSources.size <= visibleLayers.size &&
+            activeSources.entries.withIndex().all { (index, entry) ->
+                val layer = visibleLayers[index]
+                entry.key == layer.id &&
+                    entry.value.moduleId == layer.moduleId &&
+                    entry.value.configuration == layer.configuration
             }
 
         val nextSources = linkedMapOf<String, ActiveSource>()
         val compositorLayers = visibleLayers.map { layer ->
-            val renderer = if (canReuseWholeScene) {
-                activeSources.getValue(layer.id).renderer
+            val index = nextSources.size
+            val renderer = if (canReuseExistingPrefix && index < activeSources.size) {
+                activeSources.values.elementAt(index).renderer
             } else {
-                // Any removal, insertion, source replacement, or z-order change causes
-                // RootEncoder to release the old chain. Never pass those instances back in.
+                // Reuse is safe only for an unchanged ordered prefix. Every other structural
+                // change gets fresh renderers because RootEncoder releases removed filters.
                 modulesById.getValue(layer.moduleId).createRenderer(appContext, layer.configuration)
             }
 
