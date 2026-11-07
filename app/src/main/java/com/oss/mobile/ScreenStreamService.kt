@@ -355,17 +355,6 @@ class ScreenStreamService : Service(), ConnectChecker {
                 (getSystemService(POWER_SERVICE) as android.os.PowerManager).currentThermalStatus
             } else -1
             val client = stream?.getStreamClient()
-            val videoFps = latestVideoFps
-            val streamMetrics = if (client != null) mapOf(
-                "videoFps" to (videoFps?.toString() ?: "unavailable"),
-                "sentVideoFrames" to client.getSentVideoFrames().toString(),
-                "droppedVideoFrames" to client.getDroppedVideoFrames().toString(),
-                "sentAudioFrames" to client.getSentAudioFrames().toString(),
-                "droppedAudioFrames" to client.getDroppedAudioFrames().toString(),
-                "streamQueueBytes" to client.getCacheSize().toString(),
-                "streamQueueItems" to client.getItemsInCache().toString(),
-                "streamCongested" to client.hasCongestion().toString()
-            ) else emptyMap()
             OssDiagnostics.center.record(
                 DiagnosticCategory.SYSTEM,
                 when {
@@ -381,8 +370,26 @@ class ScreenStreamService : Service(), ConnectChecker {
                     "appPssKb" to pssKb.toString(),
                     "thermalStatus" to thermal.toString(),
                     "thermalStatusName" to thermalStatusName(thermal)
-                ) + streamMetrics
+                )
             )
+            if (client != null) {
+                OssDiagnostics.center.record(
+                    DiagnosticCategory.VIDEO,
+                    DiagnosticSeverity.INFO,
+                    "VIDEO_STREAM_METRICS",
+                    "RootEncoder video and transport metrics",
+                    mapOf(
+                        "videoFps" to (latestVideoFps?.toString() ?: "unavailable"),
+                        "sentVideoFrames" to client.getSentVideoFrames().toString(),
+                        "droppedVideoFrames" to client.getDroppedVideoFrames().toString(),
+                        "sentAudioFrames" to client.getSentAudioFrames().toString(),
+                        "droppedAudioFrames" to client.getDroppedAudioFrames().toString(),
+                        "streamCacheSize" to client.getCacheSize().toString(),
+                        "streamQueueItems" to client.getItemsInCache().toString(),
+                        "streamCongested" to client.hasCongestion().toString()
+                    )
+                )
+            }
         } catch (error: Exception) {
             OssDiagnostics.center.record(DiagnosticCategory.SYSTEM, DiagnosticSeverity.WARNING, "SYSTEM_SAMPLE_FAILED", error.javaClass.simpleName)
         }
@@ -490,6 +497,7 @@ class ScreenStreamService : Service(), ConnectChecker {
         } catch (_: Exception) {
         }
         stream = null
+        latestVideoFps = null
         mixerSource = null
         releaseProjection()
     }
