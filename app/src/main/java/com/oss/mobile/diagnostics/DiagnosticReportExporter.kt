@@ -36,6 +36,8 @@ class DiagnosticReportExporter(private val context: Context) {
                     put("sessionId", session.sessionId)
                     put("startedAtElapsedMs", session.startedAtElapsedMs)
                     put("label", session.label)
+                    put("endedAtElapsedMs", session.endedAtElapsedMs ?: JSONObject.NULL)
+                    put("outcome", session.outcome ?: JSONObject.NULL)
                 }
             } ?: JSONObject.NULL)
             put("droppedEventCount", snapshot.droppedEventCount)
