@@ -38,7 +38,21 @@ class OverlayCompositor(
             .filter { it.enabled }
             .sortedWith(compareBy<CompositorLayer> { it.zIndex }.thenBy { it.id })
 
-        // Remove only renderers previously registered by this compositor.
+        val current = attachedLayers.map { it.key to it.value }
+        val desired = orderedLayers.map { it.id to it.renderer }
+        val appendDelta = compositorAppendDelta(current, desired)
+
+        if (appendDelta != null) {
+            // Unchanged scenes become a no-op; adding a topmost layer appends only that filter.
+            appendDelta.forEach { (id, renderer) ->
+                glInterface.addFilter(renderer)
+                attachedLayers[id] = renderer
+            }
+            return
+        }
+
+        // Removal, replacement, or z-order changes require an ordered rebuild.
+        // Only renderers owned by this compositor are touched.
         attachedLayers.values.forEach { renderer ->
             glInterface.removeFilter(renderer)
         }
