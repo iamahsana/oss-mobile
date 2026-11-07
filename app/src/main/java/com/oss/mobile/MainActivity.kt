@@ -36,6 +36,9 @@ import android.os.Looper
 import android.widget.TextView
 import android.widget.Toast
 import com.oss.mobile.audio.AudioDiagnostics
+import com.oss.mobile.diagnostics.DiagnosticReportExporter
+import com.oss.mobile.diagnostics.OssDiagnostics
+import java.io.File
 
 class MainActivity : Activity() {
     private val scenes = mutableListOf<String>()
@@ -59,6 +62,7 @@ class MainActivity : Activity() {
     private lateinit var streamKey: EditText
     private lateinit var streamStatus: TextView
     private var statusReceiverRegistered = false
+    private var pendingDiagnosticArchive: File? = null
 
     private val statusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -78,6 +82,7 @@ class MainActivity : Activity() {
     companion object {
         private const val REQUEST_SCREEN_CAPTURE = 4101
         private const val REQUEST_MICROPHONE = 4102
+        private const val REQUEST_EXPORT_DIAGNOSTICS = 4103
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -408,6 +413,30 @@ class MainActivity : Activity() {
         }
         audioCard.addView(diagnosticsButton)
 
+        val exportDiagnosticsButton = Button(this).apply {
+            text = "Export full diagnostic report"
+            isAllCaps = false
+            textSize = 13f
+            setTextColor(0xFF07131B.toInt())
+            background = roundedBackground(0xFF61D9F4.toInt(), 12)
+            setOnClickListener {
+                try {
+                    pendingDiagnosticArchive = DiagnosticReportExporter(this@MainActivity).createArchive()
+                    val saveIntent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "application/zip"
+                        putExtra(Intent.EXTRA_TITLE, pendingDiagnosticArchive?.name ?: "OSS-Diagnostic.zip")
+                    }
+                    startActivityForResult(saveIntent, REQUEST_EXPORT_DIAGNOSTICS)
+                } catch (error: Exception) {
+                    Toast.makeText(this@MainActivity, "Gagal membuat laporan: ${error.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        audioCard.addView(exportDiagnosticsButton, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(48)
+        ).apply { topMargin = dp(8) })
+
         val mixerButton = Button(this).apply {
             text = "Digital Audio Mixer"
             isAllCaps = false
@@ -710,6 +739,25 @@ class MainActivity : Activity() {
     @Deprecated("Uses the platform screen-capture consent result")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_EXPORT_DIAGNOSTICS) {
+            val archive = pendingDiagnosticArchive
+            pendingDiagnosticArchive = null
+            if (resultCode == RESULT_OK && data?.data != null && archive != null) {
+                try {
+                    contentResolver.openOutputStream(data.data!!)?.use { output ->
+                        archive.inputStream().use { input -> input.copyTo(output) }
+                    } ?: throw IllegalStateException("Tidak bisa membuka lokasi penyimpanan")
+                    Toast.makeText(this, "Diagnostic report berhasil disimpan.", Toast.LENGTH_LONG).show()
+                } catch (error: Exception) {
+                    Toast.makeText(this, "Gagal menyimpan laporan: ${error.message}", Toast.LENGTH_LONG).show()
+                } finally {
+                    archive.delete()
+                }
+            } else {
+                archive?.delete()
+            }
+            return
+        }
         if (requestCode != REQUEST_SCREEN_CAPTURE) return
         if (resultCode != RESULT_OK || data == null) {
             streamStatus.text = "Izin screen capture dibatalkan."
