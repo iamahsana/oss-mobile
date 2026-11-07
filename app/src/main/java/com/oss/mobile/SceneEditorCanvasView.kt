@@ -215,11 +215,12 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             val drawable = context.getDrawable(resourceId) ?: return null
             val bitmapWidth = drawable.intrinsicWidth.takeIf { it > 0 } ?: 256
             val bitmapHeight = drawable.intrinsicHeight.takeIf { it > 0 } ?: 256
-            if (bitmapWidth.toLong() * bitmapHeight.toLong() > 16_777_216L) return null
+            if (bitmapWidth.toLong() * bitmapHeight.toLong() > 4_194_304L) return null
             val bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
             val target = android.graphics.Canvas(bitmap)
             drawable.setBounds(0, 0, bitmapWidth, bitmapHeight)
             drawable.draw(target)
+            if (imageCache.size() >= 8) imageCache.removeAt(0)
             imageCache.put(resourceId, bitmap)
             bitmap
         } catch (_: Exception) {
