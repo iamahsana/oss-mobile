@@ -45,6 +45,27 @@ class CompositorDiffTest {
     }
 
     @Test
+    fun structuralRebuildDetectsAnyRendererThatWouldBeReusedAfterRelease() {
+        val background = Any()
+        val replacement = Any()
+
+        assertEquals(
+            true,
+            compositorHasRendererOverlap(
+                listOf("background" to background),
+                listOf("background" to background, "badge" to replacement)
+            )
+        )
+        assertEquals(
+            false,
+            compositorHasRendererOverlap(
+                listOf("background" to background),
+                listOf("background" to replacement)
+            )
+        )
+    }
+
+    @Test
     fun replacingRendererUnderSameIdRequiresRebuild() {
         val oldRenderer = Any()
         val newRenderer = Any()
