@@ -63,6 +63,7 @@ class ScreenStreamService : Service(), ConnectChecker {
         const val AUDIO_MODE_MIX = "mix"
         const val ACTION_STATUS = "com.oss.mobile.ACTION_STREAM_STATUS"
         const val ACTION_STOP = "com.oss.mobile.ACTION_STOP"
+        const val ACTION_SET_TEST_IMAGE_OVERLAY = "com.oss.mobile.ACTION_SET_TEST_IMAGE_OVERLAY"
         const val ACTION_CAPTURE_VISIBILITY = "com.oss.mobile.ACTION_CAPTURE_VISIBILITY"
         const val EXTRA_CAPTURE_VISIBLE = "capture_visible"
         const val EXTRA_STATUS = "stream_status"
@@ -207,6 +208,16 @@ class ScreenStreamService : Service(), ConnectChecker {
             return START_NOT_STICKY
         }
 
+        if (intent.action == ACTION_SET_TEST_IMAGE_OVERLAY) {
+            val enabled = intent.getBooleanExtra(EXTRA_TEST_IMAGE_OVERLAY, false)
+            if (stream == null || overlayCompositor == null) {
+                sendStatus("Perubahan overlay akan diterapkan saat streaming berikutnya.")
+            } else {
+                applyTestImageOverlay(enabled)
+            }
+            return START_NOT_STICKY
+        }
+
         val endpoint = intent.getStringExtra(EXTRA_ENDPOINT).orEmpty()
         val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0)
         val resultData = getProjectionData(intent)
@@ -303,25 +314,7 @@ class ScreenStreamService : Service(), ConnectChecker {
 
             overlayCompositor = OverlayCompositor(output.getGlInterface())
             if (intent.getBooleanExtra(EXTRA_TEST_IMAGE_OVERLAY, false)) {
-                val testRenderer = StaticImageOverlayModule().createRenderer(
-                    this,
-                    mapOf(
-                        "resource_id" to R.drawable.oss_test_overlay.toString(),
-                        "x_percent" to "5",
-                        "y_percent" to "5",
-                        "width_percent" to "46",
-                        "opacity" to "0.96"
-                    )
-                )
-                overlayCompositor?.setLayers(
-                    listOf(CompositorLayer("device-test-static-image", 10, testRenderer))
-                )
-                OssDiagnostics.center.record(
-                    DiagnosticCategory.VIDEO,
-                    DiagnosticSeverity.INFO,
-                    "STATIC_IMAGE_TEST_ATTACHED",
-                    "Temporary static image overlay attached to encoder"
-                )
+                applyTestImageOverlay(true)
             }
             output.getGlInterface().setForceRender(true, 15)
             // ScreenSource manages display rotation itself; do not apply camera rotation.
@@ -344,6 +337,40 @@ class ScreenStreamService : Service(), ConnectChecker {
         }
 
         return START_NOT_STICKY
+    }
+
+    private fun applyTestImageOverlay(enabled: Boolean) {
+        if (enabled) {
+            val testRenderer = StaticImageOverlayModule().createRenderer(
+                this,
+                mapOf(
+                    "resource_id" to R.drawable.oss_test_overlay.toString(),
+                    "x_percent" to "5",
+                    "y_percent" to "5",
+                    "width_percent" to "46",
+                    "opacity" to "0.96"
+                )
+            )
+            overlayCompositor?.setLayers(
+                listOf(CompositorLayer("device-test-static-image", 10, testRenderer))
+            )
+            OssDiagnostics.center.record(
+                DiagnosticCategory.VIDEO,
+                DiagnosticSeverity.INFO,
+                "STATIC_IMAGE_TEST_ATTACHED",
+                "Temporary static image overlay attached or updated"
+            )
+            sendStatus("Static image overlay aktif.")
+        } else {
+            overlayCompositor?.setLayers(emptyList())
+            OssDiagnostics.center.record(
+                DiagnosticCategory.VIDEO,
+                DiagnosticSeverity.INFO,
+                "STATIC_IMAGE_TEST_REMOVED",
+                "Temporary static image overlay removed"
+            )
+            sendStatus("Static image overlay dinonaktifkan.")
+        }
     }
 
     @Suppress("DEPRECATION")
