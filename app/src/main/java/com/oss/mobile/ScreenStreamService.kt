@@ -20,7 +20,7 @@ import android.widget.Toast
 import com.pedro.common.ConnectChecker
 import com.pedro.encoder.input.sources.audio.InternalAudioSource
 import com.pedro.encoder.input.sources.audio.MicrophoneSource
-import com.oss.mobile.audio.OssAudioMixerSource
+import com.oss.mobile.audio.OssBufferedAudioMixerSource
 import com.oss.mobile.audio.AudioDiagnostics
 import com.oss.mobile.audio.DiagnosticAudioSource
 import com.pedro.encoder.input.sources.video.NoVideoSource
@@ -64,7 +64,7 @@ class ScreenStreamService : Service(), ConnectChecker {
     private var lastReconnectAttemptAt = 0L
     private var audioRecordingCallback: AudioManager.AudioRecordingCallback? = null
     private var diagnosticAudioManager: AudioManager? = null
-    @Volatile private var mixerSource: OssAudioMixerSource? = null
+    @Volatile private var mixerSource: OssBufferedAudioMixerSource? = null
 
     fun isMixerAvailable(): Boolean = mixerSource != null
     fun setMixerChannelGain(channelId: String, gain: Float): Boolean =
@@ -209,12 +209,12 @@ class ScreenStreamService : Service(), ConnectChecker {
                     if (Build.VERSION.SDK_INT < 29) {
                         throw IllegalStateException("Audio internal memerlukan Android 10+")
                     }
-                    OssAudioMixerSource(projection!!)
+                    OssBufferedAudioMixerSource(projection!!)
                 }
                 else -> MicrophoneSource()
             }
-            mixerSource = rawAudioInput as? OssAudioMixerSource
-            val audioInput = if (rawAudioInput is OssAudioMixerSource) {
+            mixerSource = rawAudioInput as? OssBufferedAudioMixerSource
+            val audioInput = if (rawAudioInput is OssBufferedAudioMixerSource) {
                 rawAudioInput
             } else {
                 DiagnosticAudioSource(rawAudioInput, audioMode)
@@ -367,7 +367,7 @@ class ScreenStreamService : Service(), ConnectChecker {
 
         val applied = when (audioInput) {
             is MicrophoneSource -> audioInput.setPreferredDevice(wiredMic)
-            is OssAudioMixerSource -> audioInput.setPreferredMicrophoneDevice(wiredMic)
+            is OssBufferedAudioMixerSource -> audioInput.setPreferredMicrophoneDevice(wiredMic)
             else -> false
         }
         AudioDiagnostics.add("Preferred wired microphone=${wiredMic.productName}; type=${wiredMic.type}; applied=$applied")
