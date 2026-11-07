@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicReference
  * ImageFilterRender whose scene geometry is applied from drawFilter(), i.e. on
  * RootEncoder's GL render thread. UI/service threads only publish immutable snapshots.
  */
-class SceneImageFilterRender : ImageFilterRender() {
+class SceneImageFilterRender : ImageFilterRender(), SceneTransformTarget {
     private val pendingTransform = AtomicReference<RootEncoderSpriteTransform?>(null)
 
     // Accessed only by RootEncoder's GL thread.
@@ -17,7 +17,7 @@ class SceneImageFilterRender : ImageFilterRender() {
      * Safe to call from the editor or service thread. The newest transform wins;
      * intermediate pointer-move updates are intentionally coalesced.
      */
-    fun updateSceneTransform(transform: SceneTransform) {
+    override fun updateSceneTransform(transform: SceneTransform) {
         pendingTransform.set(RootEncoderSpriteTransform.from(transform))
     }
 
