@@ -66,6 +66,14 @@ class ScreenStreamService : Service(), ConnectChecker {
     private var userRequestedStop = false
     private var lastReconnectAttemptAt = 0L
     private var lastDiagnosticBitrateAt = 0L
+    private val diagnosticsHandler = Handler(Looper.getMainLooper())
+    private val systemDiagnosticTask = object : Runnable {
+        override fun run() {
+            if (stream == null) return
+            recordSystemHealth()
+            diagnosticsHandler.postDelayed(this, 30_000L)
+        }
+    }
     private var audioRecordingCallback: AudioManager.AudioRecordingCallback? = null
     private var diagnosticAudioManager: AudioManager? = null
     @Volatile private var mixerSource: OssBufferedAudioMixerSource? = null
@@ -178,6 +186,8 @@ class ScreenStreamService : Service(), ConnectChecker {
             userRequestedStop = false
             lastReconnectAttemptAt = 0L
             startAsForeground()
+            diagnosticsHandler.removeCallbacks(systemDiagnosticTask)
+            diagnosticsHandler.post(systemDiagnosticTask)
             sendStatus("Menyiapkan encoder dan screen capture…")
             val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             projection = manager.getMediaProjection(resultCode, resultData)
@@ -330,6 +340,35 @@ class ScreenStreamService : Service(), ConnectChecker {
         }
     }
 
+    private fun recordSystemHealth() {
+        try {
+            val activityManager = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
+            val memory = android.app.ActivityManager.MemoryInfo().also(activityManager::getMemoryInfo)
+            val pssKb = android.os.Debug.getPss()
+            val thermal = if (Build.VERSION.SDK_INT >= 29) {
+                (getSystemService(POWER_SERVICE) as android.os.PowerManager).currentThermalStatus
+            } else -1
+            OssDiagnostics.center.record(
+                DiagnosticCategory.SYSTEM,
+                when {
+                    memory.lowMemory -> DiagnosticSeverity.WARNING
+                    Build.VERSION.SDK_INT >= 29 && thermal >= 4 -> DiagnosticSeverity.WARNING
+                    else -> DiagnosticSeverity.INFO
+                },
+                "SYSTEM_HEALTH_SAMPLE",
+                "Periodic system health sample",
+                mapOf(
+                    "availableMemoryBytes" to memory.availMem.toString(),
+                    "lowMemory" to memory.lowMemory.toString(),
+                    "appPssKb" to pssKb.toString(),
+                    "thermalStatus" to thermal.toString()
+                )
+            )
+        } catch (error: Exception) {
+            OssDiagnostics.center.record(DiagnosticCategory.SYSTEM, DiagnosticSeverity.WARNING, "SYSTEM_SAMPLE_FAILED", error.javaClass.simpleName)
+        }
+    }
+
     private fun startAudioRecordingDiagnostics() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
         val manager = getSystemService(AUDIO_SERVICE) as AudioManager
@@ -383,6 +422,7 @@ class ScreenStreamService : Service(), ConnectChecker {
 
     private fun stopStreaming() {
         userRequestedStop = true
+        diagnosticsHandler.removeCallbacks(systemDiagnosticTask)
         OssDiagnostics.center.record(DiagnosticCategory.APP, DiagnosticSeverity.INFO, "STREAM_STOP_REQUESTED", "Streaming stop requested")
         OssDiagnostics.center.endSession("stopped")
         stopAudioRecordingDiagnostics()
@@ -408,6 +448,8 @@ class ScreenStreamService : Service(), ConnectChecker {
     }
 
     private fun stopStreamingResources() {
+        diagnosticsHandler.removeCallbacks(systemDiagnosticTask)
+        OssDiagnostics.center.endSession("service_destroyed")
         stopAudioRecordingDiagnostics()
         try {
             overlayCompositor?.clear()
