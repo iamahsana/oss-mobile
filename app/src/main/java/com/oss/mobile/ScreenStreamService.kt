@@ -57,6 +57,7 @@ class ScreenStreamService : Service(), ConnectChecker {
         const val EXTRA_RESULT_DATA = "projection_result_data"
         const val EXTRA_ENDPOINT = "stream_endpoint"
         const val EXTRA_AUDIO_MODE = "audio_mode"
+        const val EXTRA_TEST_IMAGE_OVERLAY = "test_image_overlay"
         const val AUDIO_MODE_MICROPHONE = "microphone"
         const val AUDIO_MODE_INTERNAL = "internal"
         const val AUDIO_MODE_MIX = "mix"
@@ -301,6 +302,27 @@ class ScreenStreamService : Service(), ConnectChecker {
             applyWiredHeadsetInput(rawAudioInput)
 
             overlayCompositor = OverlayCompositor(output.getGlInterface())
+            if (intent.getBooleanExtra(EXTRA_TEST_IMAGE_OVERLAY, false)) {
+                val testRenderer = StaticImageOverlayModule().createRenderer(
+                    this,
+                    mapOf(
+                        "resource_id" to R.drawable.oss_test_overlay.toString(),
+                        "x_percent" to "5",
+                        "y_percent" to "5",
+                        "width_percent" to "46",
+                        "opacity" to "0.96"
+                    )
+                )
+                overlayCompositor?.setLayers(
+                    listOf(CompositorLayer("device-test-static-image", 10, testRenderer))
+                )
+                OssDiagnostics.center.record(
+                    DiagnosticCategory.VIDEO,
+                    DiagnosticSeverity.INFO,
+                    "STATIC_IMAGE_TEST_ATTACHED",
+                    "Temporary static image overlay attached to encoder"
+                )
+            }
             output.getGlInterface().setForceRender(true, 15)
             // ScreenSource manages display rotation itself; do not apply camera rotation.
             output.getGlInterface().setCameraOrientation(0)
