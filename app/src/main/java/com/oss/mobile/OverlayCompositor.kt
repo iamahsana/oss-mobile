@@ -53,9 +53,7 @@ class OverlayCompositor(
 
         // RootEncoder releases a filter when it is removed. Re-adding that same instance
         // would reuse a released GL renderer, so structural rebuilds require fresh instances.
-        val reusesReleasedRenderer = current.any { (_, oldRenderer) ->
-            desired.any { (_, newRenderer) -> oldRenderer === newRenderer }
-        }
+        val reusesReleasedRenderer = compositorHasRendererOverlap(current, desired)
         require(!reusesReleasedRenderer) {
             "Structural scene changes require fresh renderer instances for every attached layer"
         }
