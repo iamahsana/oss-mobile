@@ -154,7 +154,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     }
 
     private fun drawGrid(canvas: Canvas, rect: RectF) {
-        val step = max(24f * density, min(rect.width, rect.height) / 12f)
+        val step = max(24f * density, min(rect.width(), rect.height()) / 12f)
         var x = rect.left
         while (x <= rect.right) {
             canvas.drawLine(x, rect.top, x, rect.bottom, gridPaint)
@@ -185,13 +185,13 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         canvas.drawRoundRect(rect, 6f * density, 6f * density, layerPaint)
         canvas.drawRoundRect(rect, 6f * density, 6f * density, if (selected) selectedStroke else layerStroke)
         val label = layer.displayName.take(24)
-        val maxTextWidth = max(0f, rect.width - 12f * density)
+        val maxTextWidth = max(0f, rect.width() - 12f * density)
         val measured = labelPaint.measureText(label)
         val display = if (measured > maxTextWidth && maxTextWidth > 0f) {
             android.text.TextUtils.ellipsize(label, android.text.TextPaint(labelPaint), maxTextWidth,
                 android.text.TextUtils.TruncateAt.END).toString()
         } else label
-        if (rect.width > 28f * density && rect.height > 20f * density) {
+        if (rect.width() > 28f * density && rect.height() > 20f * density) {
             canvas.drawText(display, cx, cy + labelPaint.textSize * 0.35f, labelPaint)
         }
         canvas.restore()
