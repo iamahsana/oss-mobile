@@ -24,10 +24,10 @@ data class RootEncoderSpriteTransform(
     }
 
     /**
-     * Apply before attaching the renderer to OverlayCompositor. RootEncoder's Sprite
-     * geometry is consumed on its GL thread; do not call this on an attached renderer.
+     * Apply only from a RootEncoder GL draw callback. Sprite's mutable geometry
+     * is consumed by the renderer on that same thread.
      */
-    fun applyTo(renderer: BaseObjectFilterRender) {
+    internal fun applyTo(renderer: BaseObjectFilterRender) {
         // Sprite.scale() adjusts the current translation to preserve its anchor.
         // Set scale first, then restore the desired top-left position.
         renderer.setScale(widthPercent, heightPercent)
