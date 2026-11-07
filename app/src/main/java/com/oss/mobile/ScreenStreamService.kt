@@ -351,7 +351,7 @@ class ScreenStreamService : Service(), ConnectChecker {
                 DiagnosticCategory.SYSTEM,
                 when {
                     memory.lowMemory -> DiagnosticSeverity.WARNING
-                    Build.VERSION.SDK_INT >= 29 && thermal >= 4 -> DiagnosticSeverity.WARNING
+                    Build.VERSION.SDK_INT >= 29 && thermal >= android.os.PowerManager.THERMAL_STATUS_SEVERE -> DiagnosticSeverity.WARNING
                     else -> DiagnosticSeverity.INFO
                 },
                 "SYSTEM_HEALTH_SAMPLE",
@@ -360,12 +360,24 @@ class ScreenStreamService : Service(), ConnectChecker {
                     "availableMemoryBytes" to memory.availMem.toString(),
                     "lowMemory" to memory.lowMemory.toString(),
                     "appPssKb" to pssKb.toString(),
-                    "thermalStatus" to thermal.toString()
+                    "thermalStatus" to thermal.toString(),
+                    "thermalStatusName" to thermalStatusName(thermal)
                 )
             )
         } catch (error: Exception) {
             OssDiagnostics.center.record(DiagnosticCategory.SYSTEM, DiagnosticSeverity.WARNING, "SYSTEM_SAMPLE_FAILED", error.javaClass.simpleName)
         }
+    }
+
+    private fun thermalStatusName(status: Int): String = when (status) {
+        android.os.PowerManager.THERMAL_STATUS_NONE -> "NONE"
+        android.os.PowerManager.THERMAL_STATUS_LIGHT -> "LIGHT"
+        android.os.PowerManager.THERMAL_STATUS_MODERATE -> "MODERATE"
+        android.os.PowerManager.THERMAL_STATUS_SEVERE -> "SEVERE"
+        android.os.PowerManager.THERMAL_STATUS_CRITICAL -> "CRITICAL"
+        android.os.PowerManager.THERMAL_STATUS_EMERGENCY -> "EMERGENCY"
+        android.os.PowerManager.THERMAL_STATUS_SHUTDOWN -> "SHUTDOWN"
+        else -> "UNAVAILABLE"
     }
 
     private fun startAudioRecordingDiagnostics() {
