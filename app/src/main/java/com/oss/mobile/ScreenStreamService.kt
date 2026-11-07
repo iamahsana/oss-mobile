@@ -65,6 +65,7 @@ class ScreenStreamService : Service(), ConnectChecker {
     private var overlayCompositor: OverlayCompositor? = null
     private var userRequestedStop = false
     private var lastReconnectAttemptAt = 0L
+    private var lastDiagnosticBitrateAt = 0L
     private var audioRecordingCallback: AudioManager.AudioRecordingCallback? = null
     private var diagnosticAudioManager: AudioManager? = null
     @Volatile private var mixerSource: OssBufferedAudioMixerSource? = null
@@ -457,7 +458,11 @@ class ScreenStreamService : Service(), ConnectChecker {
     }
 
     override fun onNewBitrate(bitrate: Long) {
-        OssDiagnostics.center.record(DiagnosticCategory.STREAM, DiagnosticSeverity.INFO, "RTMP_BITRATE", "Encoder bitrate update", mapOf("bitrateBps" to bitrate.toString()))
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastDiagnosticBitrateAt >= 5000L) {
+            lastDiagnosticBitrateAt = now
+            OssDiagnostics.center.record(DiagnosticCategory.STREAM, DiagnosticSeverity.INFO, "RTMP_BITRATE", "Encoder bitrate sample", mapOf("bitrateBps" to bitrate.toString()))
+        }
     }
 
     override fun onDisconnect() {
