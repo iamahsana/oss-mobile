@@ -354,6 +354,15 @@ class MainActivity : Activity() {
             setTextColor(0xFFDCE8F0.toInt())
             buttonTintList = android.content.res.ColorStateList.valueOf(0xFF61D9F4.toInt())
             isChecked = false
+            setOnCheckedChangeListener { _, checked ->
+                if (streamService != null) {
+                    val updateIntent = Intent(this@MainActivity, ScreenStreamService::class.java).apply {
+                        action = ScreenStreamService.ACTION_SET_TEST_IMAGE_OVERLAY
+                        putExtra(ScreenStreamService.EXTRA_TEST_IMAGE_OVERLAY, checked)
+                    }
+                    startService(updateIntent)
+                }
+            }
         }
         previewCard.addView(testImageOverlay)
         page.addView(previewCard)
