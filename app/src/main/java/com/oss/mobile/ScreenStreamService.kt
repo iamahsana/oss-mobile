@@ -23,6 +23,9 @@ import com.pedro.encoder.input.sources.audio.MicrophoneSource
 import com.oss.mobile.audio.OssBufferedAudioMixerSource
 import com.oss.mobile.audio.AudioDiagnostics
 import com.oss.mobile.audio.DiagnosticAudioSource
+import com.oss.mobile.diagnostics.DiagnosticCategory
+import com.oss.mobile.diagnostics.DiagnosticSeverity
+import com.oss.mobile.diagnostics.OssDiagnostics
 import com.pedro.encoder.input.sources.video.NoVideoSource
 import com.pedro.encoder.input.sources.video.ScreenSource
 import com.pedro.library.generic.GenericStream
@@ -195,6 +198,8 @@ class ScreenStreamService : Service(), ConnectChecker {
             }
 
             val audioMode = intent.getStringExtra(EXTRA_AUDIO_MODE) ?: AUDIO_MODE_MICROPHONE
+            OssDiagnostics.center.beginSession("stream:$audioMode")
+            OssDiagnostics.center.record(DiagnosticCategory.APP, DiagnosticSeverity.INFO, "STREAM_INIT", "Stream initialization started", mapOf("audioMode" to audioMode, "sdk" to Build.VERSION.SDK_INT.toString()))
             AudioDiagnostics.beginCaptureSession(audioMode)
             AudioDiagnostics.add("Android SDK=${Build.VERSION.SDK_INT}; selectedMode=$audioMode")
             startAudioRecordingDiagnostics()
@@ -240,6 +245,7 @@ class ScreenStreamService : Service(), ConnectChecker {
                     noiseSuppressor = false
                 )
 
+            OssDiagnostics.center.record(DiagnosticCategory.VIDEO, if (prepared) DiagnosticSeverity.INFO else DiagnosticSeverity.ERROR, "ENCODER_PREPARE", "Encoder preparation completed", mapOf("prepared" to prepared.toString(), "width" to "720", "height" to "1280", "fps" to "15", "audioSampleRate" to "32000"))
             if (!prepared) throw IllegalStateException("Encoder tidak berhasil disiapkan")
 
             // Prefer the wired headset microphone when Android exposes one.
@@ -262,6 +268,7 @@ class ScreenStreamService : Service(), ConnectChecker {
             sendStatus("Mengirim stream ke server RTMP dengan sumber $audioLabel…")
             output.startStream(endpoint)
         } catch (error: Exception) {
+            OssDiagnostics.center.record(DiagnosticCategory.APP, DiagnosticSeverity.ERROR, "STREAM_START_EXCEPTION", error.javaClass.simpleName + ": " + (error.message ?: "unknown"))
             Toast.makeText(this, "OSS: ${error.message ?: "Gagal memulai streaming"}", Toast.LENGTH_LONG).show()
             stopStreaming()
         }
@@ -375,6 +382,8 @@ class ScreenStreamService : Service(), ConnectChecker {
 
     private fun stopStreaming() {
         userRequestedStop = true
+        OssDiagnostics.center.record(DiagnosticCategory.APP, DiagnosticSeverity.INFO, "STREAM_STOP_REQUESTED", "Streaming stop requested")
+        OssDiagnostics.center.endSession("stopped")
         stopAudioRecordingDiagnostics()
         try {
             overlayCompositor?.clear()
@@ -430,23 +439,29 @@ class ScreenStreamService : Service(), ConnectChecker {
     }
 
     override fun onConnectionStarted(url: String) {
+        OssDiagnostics.center.record(DiagnosticCategory.STREAM, DiagnosticSeverity.INFO, "RTMP_CONNECTING", "Connecting to RTMP endpoint; credentials omitted")
         updateNotification("Menghubungkan ke server RTMP…")
         sendStatus("Menghubungkan ke server RTMP…")
     }
 
     override fun onConnectionSuccess() {
+        OssDiagnostics.center.record(DiagnosticCategory.STREAM, DiagnosticSeverity.INFO, "RTMP_CONNECTED", "RTMP connection established")
         lastReconnectAttemptAt = 0L
         updateNotification("Terhubung — streaming aktif")
         sendStatus("TERHUBUNG — streaming aktif ke RTMP.")
     }
 
     override fun onConnectionFailed(reason: String) {
+        OssDiagnostics.center.record(DiagnosticCategory.STREAM, DiagnosticSeverity.ERROR, "RTMP_CONNECTION_FAILED", reason)
         attemptReconnect(reason)
     }
 
-    override fun onNewBitrate(bitrate: Long) = Unit
+    override fun onNewBitrate(bitrate: Long) {
+        OssDiagnostics.center.record(DiagnosticCategory.STREAM, DiagnosticSeverity.INFO, "RTMP_BITRATE", "Encoder bitrate update", mapOf("bitrateBps" to bitrate.toString()))
+    }
 
     override fun onDisconnect() {
+        OssDiagnostics.center.record(DiagnosticCategory.STREAM, if (userRequestedStop) DiagnosticSeverity.INFO else DiagnosticSeverity.WARNING, "RTMP_DISCONNECTED", "RTMP connection disconnected", mapOf("requested" to userRequestedStop.toString()))
         if (!userRequestedStop) {
             attemptReconnect("Koneksi RTMP terputus")
         } else {
@@ -468,6 +483,7 @@ class ScreenStreamService : Service(), ConnectChecker {
         } catch (_: Exception) {
             false
         }
+        OssDiagnostics.center.record(DiagnosticCategory.NETWORK, if (retryAccepted) DiagnosticSeverity.WARNING else DiagnosticSeverity.ERROR, "RTMP_RECONNECT", "Reconnect attempt evaluated", mapOf("accepted" to retryAccepted.toString()))
         if (retryAccepted) {
             updateNotification("Koneksi terputus — mencoba menyambungkan ulang…")
             sendStatus("Koneksi terputus: $reason. Mencoba menyambungkan ulang (maksimal $MAX_RECONNECT_ATTEMPTS kali)…")
@@ -479,12 +495,14 @@ class ScreenStreamService : Service(), ConnectChecker {
     }
 
     override fun onAuthError() {
+        OssDiagnostics.center.record(DiagnosticCategory.STREAM, DiagnosticSeverity.ERROR, "RTMP_AUTH_ERROR", "RTMP authentication failed; credentials omitted")
         updateNotification("Autentikasi server gagal")
         sendStatus("Autentikasi gagal. Periksa Stream Key dan RTMP URL.")
         stopStreaming()
     }
 
     override fun onAuthSuccess() {
+        OssDiagnostics.center.record(DiagnosticCategory.STREAM, DiagnosticSeverity.INFO, "RTMP_AUTH_SUCCESS", "RTMP authentication succeeded")
         updateNotification("Autentikasi berhasil")
         sendStatus("Autentikasi server berhasil.")
     }
