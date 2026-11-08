@@ -246,13 +246,13 @@ class SceneEditorActivity : Activity() {
             dockShowingProperties = false
             editor.setScene(document, null)
             renderBottomDock()
-        }, LinearLayout.LayoutParams(0, dp(35), 1f))
+        }, LinearLayout.LayoutParams(0, dockTabHeight(), 1f))
         tabs.addView(makeButton("Properti", 10) {
             if (editor.selectedLayer() != null) {
                 dockShowingProperties = true
                 renderBottomDock()
             } else Toast.makeText(this@SceneEditorActivity, "Pilih elemen terlebih dahulu.", Toast.LENGTH_SHORT).show()
-        }, LinearLayout.LayoutParams(0, dp(35), 1f))
+        }, LinearLayout.LayoutParams(0, dockTabHeight(), 1f))
         dockContainer.addView(tabs)
     }
 
