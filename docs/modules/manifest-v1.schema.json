@@ -50,7 +50,7 @@
           "key": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,47}$" },
           "type": { "enum": ["text", "image", "shape"] },
           "default": { "type": ["string", "number", "boolean", "object"] },
-          "asset": { "type": "string", "pattern": "^assets/[A-Za-z0-9._/-]+$" },
+          "asset": { "type": "string", "pattern": "^assets/(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9_-][A-Za-z0-9._/-]*$" },
           "transform": {
             "type": "object",
             "additionalProperties": false,
