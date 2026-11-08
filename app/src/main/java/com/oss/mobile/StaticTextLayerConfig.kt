@@ -23,7 +23,8 @@ data class StaticTextLayerConfig(
     val backgroundGradientEndColor: Int = Color.rgb(40, 170, 210),
     val backgroundRadius: Float = 18f,
     val italic: Boolean = false,
-    val fontFamily: FontFamily = FontFamily.SANS
+    val fontFamily: FontFamily = FontFamily.SANS,
+    val backgroundOpacity: Int = 86
 ) {
     enum class Alignment { LEFT, CENTER, RIGHT }
     enum class FontFamily { SANS, SERIF, MONOSPACE }
@@ -33,6 +34,7 @@ data class StaticTextLayerConfig(
         require(textSize.isFinite() && textSize in 16f..256f) { "Text size must be 16–256" }
         require(outlineWidth.isFinite() && outlineWidth in 0f..12f) { "Outline width must be 0–12" }
         require(backgroundRadius.isFinite() && backgroundRadius in 0f..48f) { "Background radius must be 0–48" }
+        require(backgroundOpacity in 0..100) { "Background opacity must be 0–100" }
     }
 
     fun toMap(): Map<String, String> = mapOf(
@@ -49,7 +51,8 @@ data class StaticTextLayerConfig(
         KEY_BACKGROUND_GRADIENT_END to String.format("#%08X", backgroundGradientEndColor),
         KEY_BACKGROUND_RADIUS to backgroundRadius.toString(),
         KEY_ITALIC to italic.toString(),
-        KEY_FONT_FAMILY to fontFamily.name
+        KEY_FONT_FAMILY to fontFamily.name,
+        KEY_BACKGROUND_OPACITY to backgroundOpacity.toString()
     )
 
     companion object {
@@ -68,6 +71,7 @@ data class StaticTextLayerConfig(
         const val KEY_BACKGROUND_RADIUS = "background_radius"
         const val KEY_ITALIC = "italic"
         const val KEY_FONT_FAMILY = "font_family"
+        const val KEY_BACKGROUND_OPACITY = "background_opacity"
 
         fun from(values: Map<String, String>): StaticTextLayerConfig {
             val text = values[KEY_TEXT] ?: "Teks"
@@ -87,7 +91,8 @@ data class StaticTextLayerConfig(
             val backgroundRadius = values[KEY_BACKGROUND_RADIUS]?.toFloatOrNull()?.coerceIn(0f, 48f) ?: 18f
             val italic = values[KEY_ITALIC]?.toBooleanStrictOrNull() ?: false
             val fontFamily = runCatching { FontFamily.valueOf(values[KEY_FONT_FAMILY] ?: "SANS") }.getOrDefault(FontFamily.SANS)
-            return StaticTextLayerConfig(text, color, size, bold, alignment, outlineWidth, shadow, backgroundEnabled, backgroundColor, backgroundGradient, backgroundGradientEnd, backgroundRadius, italic, fontFamily)
+            val backgroundOpacity = values[KEY_BACKGROUND_OPACITY]?.toIntOrNull()?.coerceIn(0, 100) ?: 86
+            return StaticTextLayerConfig(text, color, size, bold, alignment, outlineWidth, shadow, backgroundEnabled, backgroundColor, backgroundGradient, backgroundGradientEnd, backgroundRadius, italic, fontFamily, backgroundOpacity)
         }
     }
 }
@@ -143,11 +148,11 @@ object TextLayerBitmapFactory {
             val canvas = Canvas(bitmap)
             if (config.backgroundEnabled) {
                 val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = config.backgroundColor
+                    color = Color.argb((255 * config.backgroundOpacity / 100f).toInt(), Color.red(config.backgroundColor), Color.green(config.backgroundColor), Color.blue(config.backgroundColor))
                     style = Paint.Style.FILL
                     if (config.backgroundGradient) {
                         shader = LinearGradient(0f, 0f, width.toFloat(), height.toFloat(),
-                            config.backgroundColor, config.backgroundGradientEndColor, Shader.TileMode.CLAMP)
+                            config.backgroundColor.let { Color.argb((255 * config.backgroundOpacity / 100f).toInt(), Color.red(it), Color.green(it), Color.blue(it)) }, Color.argb((255 * config.backgroundOpacity / 100f).toInt(), Color.red(config.backgroundGradientEndColor), Color.green(config.backgroundGradientEndColor), Color.blue(config.backgroundGradientEndColor)), Shader.TileMode.CLAMP)
                     }
                 }
                 canvas.drawRoundRect(1f, 1f, width - 1f, height - 1f, config.backgroundRadius, config.backgroundRadius, backgroundPaint)
