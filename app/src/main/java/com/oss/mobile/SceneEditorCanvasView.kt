@@ -289,7 +289,11 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             val target = android.graphics.Canvas(bitmap)
             drawable.setBounds(0, 0, bitmapWidth, bitmapHeight)
             drawable.draw(target)
-            if (imageCache.size() >= 8) imageCache.removeAt(0)
+            if (imageCache.size() >= 8) {
+                val eldest = imageCache.valueAt(0)
+                imageCache.removeAt(0)
+                if (!eldest.isRecycled) eldest.recycle()
+            }
             imageCache.put(resourceId, bitmap)
             bitmap
         } catch (_: Exception) {
@@ -462,6 +466,17 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         VideoPreview(retriever, bitmap, startedAt, frameAt)
 
     override fun onDetachedFromWindow() {
+        for (index in 0 until imageCache.size()) {
+            val bitmap = imageCache.valueAt(index)
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
+        imageCache.clear()
+        importedImageCache.values.forEach { if (!it.isRecycled) it.recycle() }
+        importedImageCache.clear()
+        textBitmapCache.values.forEach { if (!it.isRecycled) it.recycle() }
+        textBitmapCache.clear()
+        processedImageCache.values.forEach { if (!it.isRecycled) it.recycle() }
+        processedImageCache.clear()
         videoPreviewCache.values.forEach { preview ->
             runCatching { preview.retriever.release() }
             if (!preview.bitmap.isRecycled) preview.bitmap.recycle()
