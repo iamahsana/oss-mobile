@@ -855,7 +855,7 @@ class SceneEditorActivity : Activity() {
 
     private fun updateHistoryButtons() {
         if (!::undoButton.isInitialized || !::redoButton.isInitialized) return
-        undoButton.isEnabled = history.canUndo()
+        undoButton.isEnabled = history.canUndo(document)
         redoButton.isEnabled = history.canRedo()
         undoButton.alpha = if (undoButton.isEnabled) 1f else 0.45f
         redoButton.alpha = if (redoButton.isEnabled) 1f else 0.45f
@@ -864,6 +864,7 @@ class SceneEditorActivity : Activity() {
     private fun undoScene() {
         val previous = history.undo(document)
         if (previous == null) {
+            updateHistoryButtons()
             Toast.makeText(this, "Tidak ada perubahan untuk dibatalkan.", Toast.LENGTH_SHORT).show()
             return
         }
