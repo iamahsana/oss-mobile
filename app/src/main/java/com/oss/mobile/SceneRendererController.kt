@@ -38,7 +38,15 @@ class SceneRendererController(
      */
     @Synchronized
     fun apply(document: SceneDocument) {
-        val visibleLayers = document.renderOrder()
+        // Keep the MediaProjection-backed source attached for the whole stream session,
+        // even while hidden. Android 14+ permits only one VirtualDisplay per projection.
+        val visibleLayers = (document.renderOrder() +
+            document.layers.filter {
+                !it.visible && it.moduleId == SceneScreenLayerConfig.MODULE_ID
+            }).distinctBy { it.id }.sortedWith(
+                compareBy<SceneLayer> { if (it.moduleId == SceneScreenLayerConfig.MODULE_ID) 0 else 1 }
+                    .thenBy { it.zIndex }.thenBy { it.id }
+            )
 
         // Validate every source module before creating any renderer.
         visibleLayers.forEach { layer ->
@@ -78,7 +86,7 @@ class SceneRendererController(
                 id = layer.id,
                 zIndex = layer.zIndex,
                 renderer = renderer,
-                enabled = true
+                enabled = layer.visible
             )
         }
 
