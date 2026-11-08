@@ -76,8 +76,10 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     private val importedImageCache = linkedMapOf<String, Bitmap>()
     private val textBitmapCache = linkedMapOf<String, Bitmap>()
     private val processedImageCache = linkedMapOf<String, Bitmap>()
-    private val gifPreviewCache = linkedMapOf<String, Bitmap>()
-    private val videoPreviewCache = linkedMapOf<String, Bitmap>()
+    private data class GifPreview(val movie: android.graphics.Movie, val bitmap: Bitmap, val startedAt: Long, var lastFrameAt: Long)
+    private data class VideoPreview(val retriever: android.media.MediaMetadataRetriever, val bitmap: Bitmap, val startedAt: Long, var lastFrameAt: Long)
+    private val gifPreviewCache = linkedMapOf<String, GifPreview>()
+    private val videoPreviewCache = linkedMapOf<String, VideoPreview>()
 
     private var document = SceneDocument(id = "editor", name = "Scene")
     private var selectedLayerId: String? = null
@@ -353,29 +355,52 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     private fun videoBitmap(layer: SceneLayer): Bitmap? {
         if (layer.moduleId != SceneVideoLayerConfig.MODULE_ID) return null
         val assetId = layer.configuration[SceneVideoLayerConfig.KEY_ASSET_ID] ?: return null
-        videoPreviewCache[assetId]?.let { if (!it.isRecycled) return it }
+        val now = android.os.SystemClock.uptimeMillis()
+        val cached = videoPreviewCache[assetId]
+        if (cached != null && now - cached.lastFrameAt < 180L) {
+            postInvalidateDelayed(33L)
+            return cached.bitmap
+        }
         return try {
-            val file = SceneMediaAssetStorage.file(context, assetId) ?: return null
-            val retriever = android.media.MediaMetadataRetriever()
-            val bitmap = try {
+            val preview = cached ?: run {
+                val file = SceneMediaAssetStorage.file(context, assetId) ?: return null
+                val retriever = android.media.MediaMetadataRetriever()
                 retriever.setDataSource(file.absolutePath)
-                retriever.getFrameAtTime(0L, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-            } finally {
-                retriever.release()
-            } ?: return null
-            val scale = min(1f, 512f / max(bitmap.width, bitmap.height))
-            val preview = if (scale < 1f) Bitmap.createScaledBitmap(
-                bitmap, (bitmap.width * scale).toInt().coerceAtLeast(1),
-                (bitmap.height * scale).toInt().coerceAtLeast(1), true
-            ) else bitmap
-            if (preview !== bitmap) bitmap.recycle()
-            if (videoPreviewCache.size >= 3) {
-                val eldest = videoPreviewCache.entries.first()
-                videoPreviewCache.remove(eldest.key)
-                if (!eldest.value.isRecycled) eldest.value.recycle()
+                val durationMs = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                    ?.toLongOrNull()?.coerceAtLeast(1L) ?: 1L
+                val first = retriever.getFrameAtTime(0L, android.media.MediaMetadataRetriever.OPTION_CLOSEST)
+                    ?: run { retriever.release(); return null }
+                val scale = min(1f, 512f / max(first.width, first.height))
+                val bitmap = if (scale < 1f) Bitmap.createScaledBitmap(first,
+                    (first.width * scale).toInt().coerceAtLeast(1),
+                    (first.height * scale).toInt().coerceAtLeast(1), true) else first
+                if (bitmap !== first) first.recycle()
+                VideoPreview(retriever, bitmap, now, 0L).also {
+                    if (videoPreviewCache.size >= 2) {
+                        val eldest = videoPreviewCache.entries.first()
+                        videoPreviewCache.remove(eldest.key)
+                        runCatching { eldest.value.retriever.release() }
+                        if (!eldest.value.bitmap.isRecycled) eldest.value.bitmap.recycle()
+                    }
+                    videoPreviewCache[assetId] = it
+                }
             }
-            videoPreviewCache[assetId] = preview
-            preview
+            val durationUs = ((cached?.let { 0L } ?: 0L) + 1L) // duration is read below from metadata
+            val durationMs = preview.retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull()?.coerceAtLeast(1L) ?: 1L
+            val timeMs = (now - preview.startedAt) % durationMs
+            val frame = preview.retriever.getFrameAtTime(timeMs * 1000L, android.media.MediaMetadataRetriever.OPTION_CLOSEST)
+            if (frame != null) {
+                val scale = min(1f, 512f / max(frame.width, frame.height))
+                val scaled = if (scale < 1f) Bitmap.createScaledBitmap(frame,
+                    (frame.width * scale).toInt().coerceAtLeast(1),
+                    (frame.height * scale).toInt().coerceAtLeast(1), true) else frame
+                if (scaled !== frame) frame.recycle()
+                if (!preview.bitmap.isRecycled) preview.bitmap.recycle()
+                videoPreviewCache[assetId] = preview.copyBitmap(scaled, now)
+            }
+            postInvalidateDelayed(33L)
+            videoPreviewCache[assetId]?.bitmap
         } catch (_: Exception) {
             null
         }
@@ -384,28 +409,51 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     private fun gifBitmap(layer: SceneLayer): Bitmap? {
         if (layer.moduleId != SceneGifLayerConfig.MODULE_ID) return null
         val assetId = layer.configuration[SceneGifLayerConfig.KEY_ASSET_ID] ?: return null
-        gifPreviewCache[assetId]?.let { if (!it.isRecycled) return it }
+        val now = android.os.SystemClock.uptimeMillis()
+        val cached = gifPreviewCache[assetId]
+        if (cached != null && now - cached.lastFrameAt < 33L) {
+            postInvalidateDelayed(33L)
+            return cached.bitmap
+        }
         return try {
-            val file = SceneMediaAssetStorage.file(context, assetId) ?: return null
-            val movie = file.inputStream().use { android.graphics.Movie.decodeStream(it) } ?: return null
-            val width = movie.width().coerceIn(1, 512)
-            val height = movie.height().coerceIn(1, 512)
-            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-            val target = Canvas(bitmap)
-            target.scale(width.toFloat() / movie.width(), height.toFloat() / movie.height())
-            movie.setTime(0)
-            movie.draw(target, 0f, 0f)
-            if (gifPreviewCache.size >= 4) {
-                val eldest = gifPreviewCache.entries.first()
-                gifPreviewCache.remove(eldest.key)
-                if (!eldest.value.isRecycled) eldest.value.recycle()
+            val preview = cached ?: run {
+                val file = SceneMediaAssetStorage.file(context, assetId) ?: return null
+                val movie = file.inputStream().use { android.graphics.Movie.decodeStream(it) } ?: return null
+                val width = movie.width().coerceIn(1, 512)
+                val height = movie.height().coerceIn(1, 512)
+                val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                GifPreview(movie, bitmap, now, 0L).also {
+                    if (gifPreviewCache.size >= 4) {
+                        val eldest = gifPreviewCache.entries.first()
+                        gifPreviewCache.remove(eldest.key)
+                        if (!eldest.value.bitmap.isRecycled) eldest.value.bitmap.recycle()
+                    }
+                    gifPreviewCache[assetId] = it
+                }
             }
-            gifPreviewCache[assetId] = bitmap
-            bitmap
+            val duration = preview.movie.duration().coerceAtLeast(100)
+            val frameTime = ((now - preview.startedAt) % duration).toInt()
+            preview.movie.setTime(frameTime)
+            val target = Canvas(preview.bitmap)
+            target.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
+            val frameScale = min(
+                preview.bitmap.width.toFloat() / preview.movie.width().coerceAtLeast(1),
+                preview.bitmap.height.toFloat() / preview.movie.height().coerceAtLeast(1)
+            )
+            target.save()
+            target.scale(frameScale, frameScale)
+            preview.movie.draw(target, 0f, 0f)
+            target.restore()
+            preview.lastFrameAt = now
+            postInvalidateDelayed(33L)
+            preview.bitmap
         } catch (_: Exception) {
             null
         }
     }
+
+    private fun VideoPreview.copyBitmap(bitmap: Bitmap, frameAt: Long): VideoPreview =
+        VideoPreview(retriever, bitmap, startedAt, frameAt)
 
     private fun stickerBitmap(layer: SceneLayer): Bitmap? {
         if (layer.moduleId != StickerLayerConfig.MODULE_ID) return null
