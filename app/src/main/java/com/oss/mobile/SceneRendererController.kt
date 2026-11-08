@@ -75,7 +75,10 @@ class SceneRendererController(
                 ?: throw IllegalStateException(
                     "Renderer for layer ${layer.id} does not support scene transforms"
                 )
-            layer.applyTransformTo(transformTarget)
+            val renderLayer = if (!layer.visible && layer.moduleId == SceneScreenLayerConfig.MODULE_ID) {
+                layer.copy(transform = layer.transform.copy(opacity = 0f))
+            } else layer
+            renderLayer.applyTransformTo(transformTarget)
 
             nextSources[layer.id] = ActiveSource(
                 moduleId = layer.moduleId,
@@ -86,7 +89,9 @@ class SceneRendererController(
                 id = layer.id,
                 zIndex = layer.zIndex,
                 renderer = renderer,
-                enabled = layer.visible
+                // Keep Share Screen attached at zero opacity while hidden so the
+                // MediaProjection VirtualDisplay is not released and recreated.
+                enabled = true
             )
         }
 
