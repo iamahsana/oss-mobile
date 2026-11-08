@@ -81,6 +81,7 @@ class ScreenStreamService : Service(), ConnectChecker {
     private var pendingPreview: TextureView? = null
     private var overlayCompositor: OverlayCompositor? = null
     private var sceneRendererController: SceneRendererController? = null
+    @Volatile private var sceneUsesScreenLayer = false
     private var userRequestedStop = false
     private var lastReconnectAttemptAt = 0L
     private var lastDiagnosticBitrateAt = 0L
@@ -147,6 +148,20 @@ class ScreenStreamService : Service(), ConnectChecker {
     fun applySceneDocument(document: SceneDocument): Boolean {
         val controller = sceneRendererController ?: return false
         controller.apply(document)
+        val hasScreenLayer = document.layers.any {
+            it.moduleId == SceneScreenLayerConfig.MODULE_ID && it.visible
+        }
+        if (hasScreenLayer != sceneUsesScreenLayer) {
+            val current = stream
+            val activeProjection = projection
+            if (current != null && activeProjection != null) {
+                current.changeVideoSource(
+                    if (hasScreenLayer) NoVideoSource()
+                    else ScreenSource(applicationContext, activeProjection)
+                )
+                sceneUsesScreenLayer = hasScreenLayer
+            }
+        }
         return true
     }
 
@@ -354,6 +369,7 @@ class ScreenStreamService : Service(), ConnectChecker {
             val hasScreenLayer = savedScene?.layers?.any {
                 it.moduleId == SceneScreenLayerConfig.MODULE_ID && it.visible
             } == true
+            sceneUsesScreenLayer = hasScreenLayer
             if (hasScreenLayer) {
                 output.changeVideoSource(NoVideoSource())
                 sendStatus("Share Screen aktif sebagai elemen scene.")
