@@ -65,7 +65,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         strokeWidth = 1.5f * density
     }
     private val guidePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(255, 190, 70)
+        color = Color.rgb(255, 145, 0)
         strokeWidth = 1.2f * density
         pathEffect = android.graphics.DashPathEffect(floatArrayOf(6f * density, 4f * density), 0f)
     }
@@ -762,8 +762,52 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         val layer = selectedLayer() ?: return
         val transformIds = transformSelectionIds()
         if (transformIds.size > 1) {
-            val dxNormalized = dx / (scale * document.canvas.width)
-            val dyNormalized = dy / (scale * document.canvas.height)
+            val selected = document.layers.filter { it.id in transformIds }
+            val boundsLeft = selected.minOf { it.transform.x }
+            val boundsTop = selected.minOf { it.transform.y }
+            val boundsRight = selected.maxOf { it.transform.x + it.transform.width }
+            val boundsBottom = selected.maxOf { it.transform.y + it.transform.height }
+            var dxNormalized = dx / (scale * document.canvas.width)
+            var dyNormalized = dy / (scale * document.canvas.height)
+            val nextLeft = boundsLeft + dxNormalized
+            val nextTop = boundsTop + dyNormalized
+            val boundsWidth = boundsRight - boundsLeft
+            val boundsHeight = boundsBottom - boundsTop
+            val snapDistanceX = 10f * density / (scale * document.canvas.width)
+            val snapDistanceY = 10f * density / (scale * document.canvas.height)
+            val candidatesX = mutableListOf(
+                (0f - nextLeft) to 0f,
+                (0.5f - nextLeft - boundsWidth / 2f) to 0.5f,
+                (1f - nextLeft - boundsWidth) to 1f
+            )
+            val candidatesY = mutableListOf(
+                (0f - nextTop) to 0f,
+                (0.5f - nextTop - boundsHeight / 2f) to 0.5f,
+                (1f - nextTop - boundsHeight) to 1f
+            )
+            document.layers.filter { it.id !in transformIds && it.visible }.forEach { other ->
+                val t = other.transform
+                listOf(t.x, t.x + t.width / 2f, t.x + t.width).forEach { target ->
+                    listOf(nextLeft, nextLeft + boundsWidth / 2f, nextLeft + boundsWidth).forEach { edge ->
+                        candidatesX += (target - edge) to target
+                    }
+                }
+                listOf(t.y, t.y + t.height / 2f, t.y + t.height).forEach { target ->
+                    listOf(nextTop, nextTop + boundsHeight / 2f, nextTop + boundsHeight).forEach { edge ->
+                        candidatesY += (target - edge) to target
+                    }
+                }
+            }
+            val snapX = candidatesX.minByOrNull { kotlin.math.abs(it.first) }
+            if (snapX != null && kotlin.math.abs(snapX.first) <= snapDistanceX) {
+                dxNormalized += snapX.first
+                verticalGuide = canvasLeft(scale) + snapX.second * document.canvas.width * scale
+            } else verticalGuide = null
+            val snapY = candidatesY.minByOrNull { kotlin.math.abs(it.first) }
+            if (snapY != null && kotlin.math.abs(snapY.first) <= snapDistanceY) {
+                dyNormalized += snapY.first
+                horizontalGuide = canvasTop(scale) + snapY.second * document.canvas.height * scale
+            } else horizontalGuide = null
             document = document.copy(layers = document.layers.map { item ->
                 if (item.id in transformIds && !item.locked) item.copy(
                     transform = item.transform.copy(
