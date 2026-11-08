@@ -76,6 +76,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     private val importedImageCache = linkedMapOf<String, Bitmap>()
     private val textBitmapCache = linkedMapOf<String, Bitmap>()
     private val processedImageCache = linkedMapOf<String, Bitmap>()
+    private val gifPreviewCache = linkedMapOf<String, Bitmap>()
 
     private var document = SceneDocument(id = "editor", name = "Scene")
     private var selectedLayerId: String? = null
@@ -169,6 +170,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         val textBitmap = textBitmap(layer)
         val shapeBitmap = shapeBitmap(layer)
         val stickerBitmap = stickerBitmap(layer)
+        val gifBitmap = gifBitmap(layer)
         if (image != null && layer.moduleId == "oss.source.image.static") {
             val displayImage = processedImageBitmap(layer, image)
             imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
@@ -193,6 +195,10 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
             canvas.drawBitmap(stickerBitmap, null, rect, imagePaint)
             imagePaint.alpha = 255
+        } else if (gifBitmap != null) {
+            imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
+            canvas.drawBitmap(gifBitmap, null, rect, imagePaint)
+            imagePaint.alpha = 255
         } else {
             layerPaint.color = if (selected) Color.argb(220, 39, 116, 151)
                 else Color.argb(175, 48, 82, 103)
@@ -206,7 +212,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             android.text.TextUtils.ellipsize(label, android.text.TextPaint(labelPaint), maxTextWidth,
                 android.text.TextUtils.TruncateAt.END).toString()
         } else label
-        if (image == null && textBitmap == null && shapeBitmap == null && stickerBitmap == null &&
+        if (image == null && textBitmap == null && shapeBitmap == null && stickerBitmap == null && gifBitmap == null &&
             rect.width() > 28f * density && rect.height() > 20f * density) {
             canvas.drawText(display, cx, cy + labelPaint.textSize * 0.35f, labelPaint)
         }
@@ -301,6 +307,33 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                 if (!eldest.value.isRecycled) eldest.value.recycle()
             }
             textBitmapCache[key] = bitmap
+            bitmap
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+
+    private fun gifBitmap(layer: SceneLayer): Bitmap? {
+        if (layer.moduleId != SceneGifLayerConfig.MODULE_ID) return null
+        val assetId = layer.configuration[SceneGifLayerConfig.KEY_ASSET_ID] ?: return null
+        gifPreviewCache[assetId]?.let { if (!it.isRecycled) return it }
+        return try {
+            val file = SceneMediaAssetStorage.file(context, assetId) ?: return null
+            val movie = file.inputStream().use { android.graphics.Movie.decodeStream(it) } ?: return null
+            val width = movie.width.coerceIn(1, 512)
+            val height = movie.height.coerceIn(1, 512)
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val target = Canvas(bitmap)
+            target.scale(width.toFloat() / movie.width, height.toFloat() / movie.height)
+            movie.setTime(0)
+            movie.draw(target, 0f, 0f)
+            if (gifPreviewCache.size >= 4) {
+                val eldest = gifPreviewCache.entries.first()
+                gifPreviewCache.remove(eldest.key)
+                if (!eldest.value.isRecycled) eldest.value.recycle()
+            }
+            gifPreviewCache[assetId] = bitmap
             bitmap
         } catch (_: Exception) {
             null
