@@ -9,20 +9,18 @@ Status: implementation in progress. This document defines the complete scene-edi
 - Persistent scene documents and matching editor/LIVE render geometry.
 
 ## Added in this foundation batch
-- Persistent layer group IDs in the scene document codec.
-- Group/ungroup operations and moving grouped layers together.
-- Multi-layer alignment (left/center/right/top/middle/bottom).
-- Even horizontal/vertical distribution.
+- Persistent layer group IDs in the scene document codec, with backwards-compatible reads for earlier scenes.
+- Group/ungroup operations, group drag, and multi-selection mode on the canvas.
+- Shared bounding-box resize/rotation for selected layers.
+- Multi-layer alignment (left/center/right/top/middle/bottom) and even horizontal/vertical distribution.
 - Generic private media-asset storage for GIF and video inputs, using SAF-selected URIs, MIME allowlists, bounded file sizes, generated IDs, and no persisted temporary URI.
+- Animated GIF source using RootEncoder 2.8.1 GifFilterRender, with parser preflight, frame/dimension/memory caps, editor poster thumbnail, and LIVE scene rendering.
+- Video source using RootEncoder SurfaceFilterRender + Android MediaPlayer, with private SAF import, poster thumbnail, muted audio, looping playback, file/resolution/duration caps, and renderer lifecycle cleanup.
 
-## Remaining media renderer work before calling the foundation complete
-- Animated GIF: implemented with RootEncoder 2.8.1 GifFilterRender, parser preflight, frame/dimension/memory caps, GL-thread frame selection, editor poster thumbnail, and LIVE scene renderer.
-- Video source: implemented with RootEncoder SurfaceFilterRender + Android MediaPlayer, private SAF asset import, poster thumbnail, muted audio, looping playback, file/resolution/duration caps, and renderer lifecycle cleanup.
-- Video source: MediaExtractor/MediaCodec decode, audio-track exclusion by default, timestamp pacing, pause/loop controls, and lifecycle-safe release.
-- Editor: frame/poster thumbnails and playback indicators that never start a second media decoder during normal edit gestures.
-- Multi-select canvas gestures and group resize/rotate as a single bounding-box transform.
+## Remaining foundation work
 - Scene background color/gradient and reusable alignment guides.
 - Asset cleanup/reference counting when a scene or layer is deleted.
+- Final integration review of video/GIF renderer lifecycle and combined device acceptance testing.
 
 ## Invariants
 1. Scene documents store stable asset IDs, not content URIs or raw filesystem paths.
