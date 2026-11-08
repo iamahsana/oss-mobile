@@ -76,176 +76,229 @@ class SceneEditorActivity : Activity() {
         )
     }
 
+    private lateinit var dockContainer: LinearLayout
+    private var dockShowingProperties = false
+
     private fun buildEditor() {
-        // PixelLab-inspired workspace: fixed canvas stage + separate bottom tool dock.
+        // PixelLab/Streamingin workspace: full-bleed stage + one adaptive bottom dock.
+        window.statusBarColor = Color.rgb(47, 115, 218)
+        window.navigationBarColor = Color.rgb(248, 248, 250)
+        window.decorView.systemUiVisibility = 0
+
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(241, 243, 247))
-            setPadding(dp(10), dp(8), dp(10), dp(8))
+            setBackgroundColor(Color.rgb(248, 248, 250))
         }
 
-        val header = LinearLayout(this).apply {
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.rgb(47, 115, 218))
+            setPadding(dp(8), dp(3), dp(8), dp(5))
+        }
+        val primary = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        header.addView(makeButton("‹", 22) { finish() },
-            LinearLayout.LayoutParams(dp(44), dp(44)))
+        primary.addView(makeButton("‹", 22) { finish() }, LinearLayout.LayoutParams(dp(42), dp(42)))
         titleView = TextView(this).apply {
             text = document.name
-            textSize = 17f
-            setTextColor(Color.rgb(28, 34, 45))
-            setPadding(dp(8), 0, dp(4), 0)
+            textSize = 15f
+            setTextColor(Color.WHITE)
             maxLines = 1
+            setPadding(dp(6), 0, 0, 0)
         }
-        header.addView(titleView, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        undoButton = makeButton("↶", 18) { undoScene() }
-        redoButton = makeButton("↷", 18) { redoScene() }
-        header.addView(undoButton)
-        header.addView(redoButton)
-        header.addView(makeButton("Simpan", 12) { saveScene() })
-        root.addView(header)
+        primary.addView(titleView, LinearLayout.LayoutParams(0, dp(42), 1f))
+        primary.addView(makeButton("＋", 22) { showAddSourceMenu() })
+        primary.addView(makeButton("▣", 20) { saveScene() })
+        primary.addView(makeButton("↶", 20) { undoScene() })
+        primary.addView(makeButton("↷", 20) { redoScene() })
+        primary.addView(makeButton("⋮", 22) { showWorkspaceMenu() })
+        top.addView(primary)
 
-        val canvasToolbar = LinearLayout(this).apply {
+        val secondary = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(4), 0, dp(4))
         }
-        canvasSizeButton = makeButton(canvasButtonLabel(), 10) { showCanvasSizes() }
-        canvasToolbar.addView(canvasSizeButton,
-            LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(5) })
-        canvasToolbar.addView(makeButton("Pas layar", 10) {
+        secondary.addView(makeButton("Canvas", 12) { showCanvasSizes() })
+        secondary.addView(makeButton("Layers", 12) { showLayers() })
+        secondary.addView(makeButton("Template", 12) { showSceneLibrary(true) })
+        secondary.addView(makeButton("Scene", 12) { showSceneLibrary(false) })
+        secondary.addView(makeButton("Pas layar", 11) {
             editor.resetViewport()
-            statusView.text = "Tampilan editor diatur ulang; ukuran scene tidak berubah."
+            statusView.text = "Viewport diatur ulang; komposisi scene tidak berubah."
         })
-        root.addView(canvasToolbar)
+        top.addView(secondary)
+        root.addView(top)
 
         statusView = TextView(this).apply {
-            text = "Pilih elemen di canvas untuk mengeditnya. Canvas ini adalah komposisi LIVE."
-            textSize = 11f
-            setTextColor(Color.rgb(91, 101, 118))
-            setPadding(dp(4), dp(3), dp(4), dp(5))
+            text = "Pilih modul di bawah untuk menambahkan elemen."
+            textSize = 10f
+            setTextColor(Color.rgb(95, 101, 112))
+            setPadding(dp(10), dp(3), dp(10), dp(3))
+            setBackgroundColor(Color.rgb(248, 248, 250))
         }
         root.addView(statusView)
 
-        // The stage receives all remaining space. Dock controls never cover the canvas.
         editor = SceneEditorCanvasView(this).apply {
             setScene(document)
+            setBackgroundColor(Color.rgb(248, 248, 248))
             onEditStarted = { checkpointHistory() }
             onDocumentChanged = { updated ->
                 document = updated
                 updateHistoryButtons()
-                val applied = streamService?.applySceneDocument(updated) == true
-                statusView.text = if (applied) "Perubahan diterapkan ke scene LIVE"
-                    else "Mode edit • perubahan tersimpan pada dokumen scene"
+                streamService?.applySceneDocument(updated)
+                statusView.text = "Perubahan diterapkan ke dokumen scene"
+                if (dockShowingProperties) renderBottomDock()
             }
             onSelectionChanged = { layer ->
-                statusView.text = if (layer == null) "Canvas siap • pilih atau tambahkan elemen"
-                    else if (layer.locked) "${layer.displayName} • terkunci"
-                    else "${layer.displayName} • dipilih"
+                dockShowingProperties = layer != null
+                statusView.text = if (layer == null) "Pilih modul di bawah untuk menambahkan elemen."
+                    else "${layer.displayName} • properti elemen"
+                renderBottomDock()
             }
         }
         root.addView(editor, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
-        ).apply {
-            topMargin = dp(2)
-            bottomMargin = dp(8)
-        })
-
-        // Persistent bottom dock: a separate surface below the canvas, not an overlay.
-        val dock = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(16).toFloat(); setStroke(dp(1), Color.rgb(225, 228, 235)) }
-            setPadding(dp(9), dp(8), dp(9), dp(8))
-        }
-        val dockTitle = TextView(this).apply {
-            text = "TAMBAH ELEMEN"
-            textSize = 10f
-            setTextColor(Color.rgb(104, 112, 127))
-            setPadding(dp(3), 0, 0, dp(5))
-        }
-        dock.addView(dockTitle)
-
-        fun toolRow(vararg items: Pair<String, () -> Unit>) {
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER
-            }
-            items.forEachIndexed { index, item ->
-                row.addView(makeButton(item.first, 10, item.second),
-                    LinearLayout.LayoutParams(0, dp(39), 1f).apply {
-                        if (index > 0) marginStart = dp(3)
-                        if (index < items.lastIndex) marginEnd = dp(3)
-                    })
-            }
-            dock.addView(row)
-        }
-
-        toolRow(
-            "Teks" to { showAddTextDialog() },
-            "Gambar" to { openImagePicker() },
-            "Stiker" to { showStickerPicker() },
-            "Bentuk" to { showAddShapeDialog() }
-        )
-        toolRow(
-            "GIF" to { openGifPicker() },
-            "Video" to { openVideoPicker() },
-            "Layers" to { showLayers() },
-            "Tambah lain" to { showAddSourceMenu() }
-        )
-
-        val selectedToolsTitle = TextView(this).apply {
-            text = "PENGATURAN OBJEK"
-            textSize = 10f
-            setTextColor(Color.rgb(104, 112, 127))
-            setPadding(dp(3), dp(8), 0, dp(5))
-        }
-        dock.addView(selectedToolsTitle)
-        toolRow(
-            "Posisi / ukuran" to { editSelectedTransform() },
-            "Edit teks" to { editSelectedText() },
-            "Edit gambar" to { editSelectedImage() },
-            "Edit bentuk" to { editSelectedShape() }
-        )
-        toolRow(
-            "Duplikat" to { duplicateSelected() },
-            "Urutan layer" to { showLayers() },
-            "Kunci" to { toggleLock() },
-            "Hapus" to { deleteSelected() }
-        )
-        toolRow(
-            "Grup" to { chooseLayersForGrouping() },
-            "Lepas grup" to { ungroupSelected() },
-            "Ratakan" to { arrangeSelectedLayers(false) },
-            "Sebar" to { arrangeSelectedLayers(true) }
-        )
-        val dockScroll = ScrollView(this).apply {
-            isFillViewport = false
-            isVerticalScrollBarEnabled = true
-            addView(dock)
-        }
-        val dockHeight = if (resources.configuration.orientation ==
-            android.content.res.Configuration.ORIENTATION_LANDSCAPE) dp(104)
-            else ViewGroup.LayoutParams.WRAP_CONTENT
-        root.addView(dockScroll, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dockHeight
         ))
 
-        propertyPanel = LinearLayout(this).apply {
+        dockContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            visibility = View.GONE
-            background = GradientDrawable().apply {
-                setColor(Color.WHITE)
-                cornerRadius = dp(14).toFloat()
-                setStroke(dp(1), Color.rgb(220, 224, 232))
-            }
-            setPadding(dp(12), dp(8), dp(12), dp(8))
+            setBackgroundColor(Color.WHITE)
+            setPadding(dp(8), dp(6), dp(8), dp(5))
+            elevation = dp(5).toFloat()
         }
-        root.addView(propertyPanel, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(6) })
-
+        root.addView(dockContainer, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(142)
+        ))
         setContentView(root)
+        renderBottomDock()
         updateHistoryButtons()
+    }
+
+    private fun renderBottomDock() {
+        if (!::dockContainer.isInitialized) return
+        dockContainer.removeAllViews()
+        val heading = TextView(this).apply {
+            text = if (dockShowingProperties && editor.selectedLayer() != null)
+                "PROPERTI • ${editor.selectedLayer()?.displayName}" else "MODUL ELEMEN"
+            textSize = 10f
+            setTextColor(Color.rgb(105, 109, 118))
+            setPadding(dp(3), 0, 0, dp(5))
+        }
+        dockContainer.addView(heading)
+        val strip = android.widget.HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            isFillViewport = false
+        }
+        val items = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        fun item(label: String, action: () -> Unit) {
+            val b = makeButton(label, 11, action)
+            items.addView(b, LinearLayout.LayoutParams(dp(82), dp(76)).apply {
+                marginEnd = dp(5)
+            })
+        }
+        if (dockShowingProperties && editor.selectedLayer() != null) {
+            val selected = editor.selectedLayer()!!
+            item("Posisi / ukuran") { editSelectedTransform() }
+            when (selected.moduleId) {
+                StaticTextLayerConfig.MODULE_ID -> item("Teks & gaya") { editSelectedText() }
+                StaticImageLayerConfig.MODULE_ID -> item("Gambar / crop") { editSelectedImage() }
+                ShapeLayerConfig.MODULE_ID -> item("Warna / bentuk") { editSelectedShape() }
+                StickerLayerConfig.MODULE_ID -> item("Stiker") { editSelectedSticker() }
+            }
+            item("Duplikat") { duplicateSelected() }
+            item("Urutan") { showLayers() }
+            item(if (selected.locked) "Buka kunci" else "Kunci") { toggleLock() }
+            item("Grup") { chooseLayersForGrouping() }
+            item("Hapus") { deleteSelected() }
+            item("Selesai") {
+                dockShowingProperties = false
+                editor.clearSelection()
+                renderBottomDock()
+            }
+        } else {
+            item("Teks  ＋") { showAddTextDialog() }
+            item("Gambar  ＋") { openImagePicker() }
+            item("Stiker  ＋") { showStickerPicker() }
+            item("Bentuk  ＋") { showAddShapeDialog() }
+            item("GIF  ＋") { openGifPicker() }
+            item("Video  ＋") { openVideoPicker() }
+            item("Share Screen") { showScreenSourceInfo() }
+            item("Kamera") { Toast.makeText(this, "Modul kamera disiapkan untuk beta berikutnya.", Toast.LENGTH_SHORT).show() }
+            item("Layers") { showLayers() }
+        }
+        strip.addView(items)
+        dockContainer.addView(strip, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+        ))
+        val tabs = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        tabs.addView(makeButton("Modul", 10) {
+            dockShowingProperties = false
+            editor.clearSelection()
+            renderBottomDock()
+        }, LinearLayout.LayoutParams(0, dp(35), 1f))
+        tabs.addView(makeButton("Properti", 10) {
+            if (editor.selectedLayer() != null) {
+                dockShowingProperties = true
+                renderBottomDock()
+            } else Toast.makeText(this@SceneEditorActivity, "Pilih elemen terlebih dahulu.", Toast.LENGTH_SHORT).show()
+        }, LinearLayout.LayoutParams(0, dp(35), 1f))
+        dockContainer.addView(tabs)
+    }
+
+    private fun showWorkspaceMenu() {
+        val choices = arrayOf("Pengaturan canvas", "Template scene", "Scene tersimpan", "Daftar layer", "Simpan scene")
+        AlertDialog.Builder(this).setItems(choices) { _, which ->
+            when (which) {
+                0 -> showCanvasSizes()
+                1 -> showSceneLibrary(true)
+                2 -> showSceneLibrary(false)
+                3 -> showLayers()
+                4 -> saveScene()
+            }
+        }.show()
+    }
+
+    private fun showSceneLibrary(templates: Boolean) {
+        val saved = runCatching { repository.list() }.getOrDefault(emptyList())
+        val entries = if (templates) listOf(
+            "Kosong • 9:16",
+            "Gameplay • 9:16",
+            "Gameplay • 16:9",
+            "Kamera + teks • 9:16"
+        ) else saved.map { it.name }
+        if (entries.isEmpty()) {
+            Toast.makeText(this, "Belum ada scene tersimpan.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(if (templates) "Template scene" else "Scene tersimpan")
+            .setItems(entries.toTypedArray()) { _, index ->
+                if (templates) {
+                    val canvas = if (index == 2) SceneCanvas(1280, 720) else SceneCanvas(720, 1280)
+                    val base = SceneDocument(id = document.id, name = entries[index], canvas = canvas)
+                    checkpointHistory()
+                    document = base
+                    publishSceneEdit(null, "Template diterapkan.")
+                } else {
+                    val selected = saved[index]
+                    document = selected
+                    history = SceneHistory(document)
+                    editor.setScene(document)
+                    titleView.text = document.name
+                    updateHistoryButtons()
+                    streamService?.applySceneDocument(document)
+                    statusView.text = "Scene ${document.name} dibuka."
+                    dockShowingProperties = false
+                    renderBottomDock()
+                }
+            }.setNegativeButton("Tutup", null).show()
     }
 
     private fun showAddSourceMenu() {
