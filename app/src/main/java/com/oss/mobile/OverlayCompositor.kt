@@ -51,6 +51,26 @@ class OverlayCompositor(
             return
         }
 
+        // The MediaProjection source owns the session's single VirtualDisplay.
+        // Keep that filter attached while rebuilding/reordering overlay layers; removing it
+        // would release its GL SurfaceTexture and Android 14+ will not allow a second
+        // VirtualDisplay for the same MediaProjection session.
+        val currentScreen = current.firstOrNull { it.first == SceneScreenLayerConfig.MODULE_ID }
+        val desiredScreen = desired.firstOrNull { it.first == SceneScreenLayerConfig.MODULE_ID }
+        if (currentScreen != null && desiredScreen != null &&
+            currentScreen.second === desiredScreen.second) {
+            current.filter { it.first != SceneScreenLayerConfig.MODULE_ID }.forEach { (_, renderer) ->
+                glInterface.removeFilter(renderer)
+            }
+            attachedLayers.clear()
+            attachedLayers[SceneScreenLayerConfig.MODULE_ID] = currentScreen.second
+            orderedLayers.filter { it.id != SceneScreenLayerConfig.MODULE_ID }.forEach { layer ->
+                glInterface.addFilter(layer.renderer)
+                attachedLayers[layer.id] = layer.renderer
+            }
+            return
+        }
+
         // RootEncoder releases a filter when it is removed. Re-adding that same instance
         // would reuse a released GL renderer, so structural rebuilds require fresh instances.
         val reusesReleasedRenderer = compositorHasRendererOverlap(current, desired)
