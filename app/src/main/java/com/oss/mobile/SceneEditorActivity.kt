@@ -152,6 +152,21 @@ class SceneEditorActivity : Activity() {
             LinearLayout.LayoutParams(0, dp(44), 0.7f).apply { marginStart = dp(5) })
         root.addView(secondRow)
 
+        val layerActions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        layerActions.addView(makeButton("Duplikat", 11) { duplicateSelected() },
+            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(5) })
+        layerActions.addView(makeButton("Naik layer", 11) { moveSelectedLayer(1) },
+            LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+                marginStart = dp(5)
+                marginEnd = dp(5)
+            })
+        layerActions.addView(makeButton("Turun layer", 11) { moveSelectedLayer(-1) },
+            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(5) })
+        root.addView(layerActions)
+
         setContentView(root)
     }
 
@@ -293,6 +308,52 @@ class SceneEditorActivity : Activity() {
         editor.setScene(document, null)
         streamService?.applySceneDocument(document)
         statusView.text = "Layer dihapus."
+    }
+
+    private fun duplicateSelected() {
+        val selected = editor.selectedLayer() ?: return noSelection()
+        val nextZ = (document.layers.maxOfOrNull { it.zIndex } ?: -1) + 1
+        val copy = selected.copy(
+            id = "layer_" + System.currentTimeMillis(),
+            displayName = selected.displayName + " copy",
+            zIndex = nextZ,
+            transform = selected.transform.copy(
+                x = (selected.transform.x + 0.03f).coerceIn(-1f, 2f),
+                y = (selected.transform.y + 0.03f).coerceIn(-1f, 2f)
+            ),
+            visible = true,
+            locked = false,
+            configuration = selected.configuration.toMap()
+        )
+        document = document.copy(layers = document.layers + copy)
+        editor.setScene(document, copy.id)
+        streamService?.applySceneDocument(document)
+        statusView.text = copy.displayName + " dibuat."
+    }
+
+    /** direction=1 moves toward the front; direction=-1 moves toward the back. */
+    private fun moveSelectedLayer(direction: Int) {
+        val selected = editor.selectedLayer() ?: return noSelection()
+        val ordered = document.layers.sortedWith(
+            compareBy<SceneLayer> { it.zIndex }.thenBy { it.id }
+        ).toMutableList()
+        val index = ordered.indexOfFirst { it.id == selected.id }
+        val target = index + direction
+        if (index < 0 || target !in ordered.indices) {
+            statusView.text = if (direction > 0) "Layer sudah paling depan."
+                else "Layer sudah paling belakang."
+            return
+        }
+        val moving = ordered[index]
+        ordered[index] = ordered[target]
+        ordered[target] = moving
+        val normalized = ordered.mapIndexed { newIndex, layer ->
+            layer.copy(zIndex = newIndex)
+        }
+        document = document.copy(layers = normalized)
+        editor.setScene(document, selected.id)
+        streamService?.applySceneDocument(document)
+        statusView.text = if (direction > 0) "Layer dinaikkan." else "Layer diturunkan."
     }
 
     private fun noSelection() {
