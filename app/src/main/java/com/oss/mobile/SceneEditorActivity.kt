@@ -121,6 +121,7 @@ class SceneEditorActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         canvasSizeButton = makeButton("Canvas", 12) { showCanvasSizes() }
+        canvasSizeButton.text = canvasButtonLabel()
         secondary.addView(canvasSizeButton)
         secondary.addView(makeButton("Layers", 12) { showLayers() })
         secondary.addView(makeButton("Template", 12) { showSceneLibrary(true) })
@@ -172,7 +173,7 @@ class SceneEditorActivity : Activity() {
         // The properties workspace is the same bottom dock, never a floating dialog.
         propertyPanel = dockContainer
         root.addView(dockContainer, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(142)
+            ViewGroup.LayoutParams.MATCH_PARENT, dockDefaultHeight()
         ))
         setContentView(root)
         renderBottomDock()
@@ -200,7 +201,7 @@ class SceneEditorActivity : Activity() {
         }
         fun item(label: String, action: () -> Unit) {
             val b = makeButton(label, 11, action)
-            items.addView(b, LinearLayout.LayoutParams(dp(82), dp(76)).apply {
+            items.addView(b, LinearLayout.LayoutParams(dp(82), dockItemHeight()).apply {
                 marginEnd = dp(5)
             })
         }
@@ -1450,7 +1451,7 @@ class SceneEditorActivity : Activity() {
         propertyPanel.removeAllViews()
         propertyPanel.visibility = View.VISIBLE
         propertyPanel.layoutParams = (propertyPanel.layoutParams as LinearLayout.LayoutParams).apply {
-            height = dp(214)
+            height = dockPropertyHeight()
         }
         propertyPanel.addView(TextView(this).apply {
             text = "POSISI & UKURAN  •  ${selected.displayName}"
@@ -1494,19 +1495,30 @@ class SceneEditorActivity : Activity() {
             return inputs
         }
 
-        val xy = row("X" to t.x, "Y" to t.y)
-        val wh = row("Lebar" to t.width, "Tinggi" to t.height)
-        val ro = row("Rotasi" to t.rotationDegrees, "Opacity" to t.opacity)
+        val transformInputs = if (isLandscape()) {
+            row(
+                "X" to t.x,
+                "Y" to t.y,
+                "Lebar" to t.width,
+                "Tinggi" to t.height,
+                "Rotasi" to t.rotationDegrees,
+                "Opacity" to t.opacity
+            )
+        } else {
+            row("X" to t.x, "Y" to t.y) +
+                row("Lebar" to t.width, "Tinggi" to t.height) +
+                row("Rotasi" to t.rotationDegrees, "Opacity" to t.opacity)
+        }
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END
         }
         actions.addView(makeButton("Kembali", 11) {
-            propertyPanel.layoutParams = (propertyPanel.layoutParams as LinearLayout.LayoutParams).apply { height = dp(142) }
+            propertyPanel.layoutParams = (propertyPanel.layoutParams as LinearLayout.LayoutParams).apply { height = dockDefaultHeight() }
             renderBottomDock()
         })
         actions.addView(makeButton("Terapkan", 11) {
-            val values = (xy + wh + ro).map { it.text.toString().trim().toFloatOrNull() }
+            val values = transformInputs.map { it.text.toString().trim().toFloatOrNull() }
             if (values.any { it == null }) {
                 Toast.makeText(this, "Semua nilai harus berupa angka.", Toast.LENGTH_LONG).show()
                 return@makeButton
@@ -1529,7 +1541,7 @@ class SceneEditorActivity : Activity() {
             streamService?.applySceneDocument(document)
             runCatching { repository.save(document) }
             statusView.text = "Transform layer diterapkan."
-            propertyPanel.layoutParams = (propertyPanel.layoutParams as LinearLayout.LayoutParams).apply { height = dp(142) }
+            propertyPanel.layoutParams = (propertyPanel.layoutParams as LinearLayout.LayoutParams).apply { height = dockDefaultHeight() }
             renderBottomDock()
         })
         actions.getChildAt(1).let { it.layoutParams = (it.layoutParams as LinearLayout.LayoutParams).apply { marginStart = dp(6) } }
@@ -1614,6 +1626,14 @@ class SceneEditorActivity : Activity() {
             setPadding(dp(8), 0, dp(8), 0)
             setOnClickListener { action() }
         }
+
+    private fun isLandscape(): Boolean =
+        resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    private fun dockDefaultHeight(): Int = dp(if (isLandscape()) 112 else 142)
+    private fun dockPropertyHeight(): Int = dp(if (isLandscape()) 154 else 214)
+    private fun dockItemHeight(): Int = dp(if (isLandscape()) 54 else 76)
+    private fun dockTabHeight(): Int = dp(if (isLandscape()) 27 else 35)
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
