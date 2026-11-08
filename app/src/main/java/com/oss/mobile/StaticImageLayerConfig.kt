@@ -10,7 +10,9 @@ data class StaticImageLayerConfig(
     val xPercent: Float = 5f,
     val yPercent: Float = 5f,
     val widthPercent: Float = 24f,
-    val opacity: Float = 1f
+    val opacity: Float = 1f,
+    val flipHorizontal: Boolean = false,
+    val flipVertical: Boolean = false
 ) {
     init {
         require((resourceId > 0) xor (imageFileId != null)) {
@@ -42,7 +44,9 @@ data class StaticImageLayerConfig(
                 xPercent = floatValue(KEY_X, 5f),
                 yPercent = floatValue(KEY_Y, 5f),
                 widthPercent = floatValue(KEY_WIDTH, 24f),
-                opacity = floatValue(KEY_OPACITY, 1f)
+                opacity = floatValue(KEY_OPACITY, 1f),
+                flipHorizontal = values[KEY_FLIP_HORIZONTAL]?.toBooleanStrictOrNull() ?: false,
+                flipVertical = values[KEY_FLIP_VERTICAL]?.toBooleanStrictOrNull() ?: false
             )
         }
 
@@ -52,5 +56,7 @@ data class StaticImageLayerConfig(
         const val KEY_Y = "y_percent"
         const val KEY_WIDTH = "width_percent"
         const val KEY_OPACITY = "opacity"
+        const val KEY_FLIP_HORIZONTAL = "flip_horizontal"
+        const val KEY_FLIP_VERTICAL = "flip_vertical"
     }
 }
