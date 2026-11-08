@@ -34,6 +34,23 @@ class StaticImageLayerConfigTest {
     }
 
     @Test
+    fun parsesImageFlipOptionsAndKeepsDefaultsOff() {
+        val defaults = StaticImageLayerConfig.from(mapOf("resource_id" to "9"))
+        assertEquals(false, defaults.flipHorizontal)
+        assertEquals(false, defaults.flipVertical)
+
+        val flipped = StaticImageLayerConfig.from(
+            mapOf(
+                "resource_id" to "9",
+                "flip_horizontal" to "true",
+                "flip_vertical" to "true"
+            )
+        )
+        assertEquals(true, flipped.flipHorizontal)
+        assertEquals(true, flipped.flipVertical)
+    }
+
+    @Test
     fun rejectsMissingResourceId() {
         assertThrows(IllegalArgumentException::class.java) {
             StaticImageLayerConfig.from(emptyMap())
