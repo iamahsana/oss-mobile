@@ -269,6 +269,19 @@ class SceneEditorActivity : Activity() {
             LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(4) })
         root.addView(arrangeRow)
 
+
+        val multiSelectRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        multiSelectRow.addView(makeButton("Multi pilih layer", 11) {
+            val enabled = !editor.isMultiSelectEnabled()
+            editor.setMultiSelectEnabled(enabled)
+            statusView.text = if (enabled) "Mode multi-pilih aktif • ketuk beberapa layer, lalu geser bersama"
+                else "Mode multi-pilih nonaktif"
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40)))
+        root.addView(multiSelectRow)
+
         setContentView(root)
     }
 
@@ -280,7 +293,7 @@ class SceneEditorActivity : Activity() {
             return
         }
         val selectedIds = linkedSetOf<String>()
-        editor.selectedLayer()?.id?.let(selectedIds::add)
+        selectedIds.addAll(editor.selectedLayerIds())
         AlertDialog.Builder(this)
             .setTitle("Pilih layer yang akan dikelompokkan")
             .setMultiChoiceItems(layers.map { it.displayName }.toTypedArray(),
