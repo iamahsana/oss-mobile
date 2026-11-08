@@ -63,12 +63,17 @@ data class SceneLayer(
     val transform: SceneTransform = SceneTransform(),
     val visible: Boolean = true,
     val locked: Boolean = false,
-    val configuration: Map<String, String> = emptyMap()
+    val configuration: Map<String, String> = emptyMap(),
+    /** Shared stable identifier for layers that move and organize as one group. */
+    val groupId: String? = null
 ) {
     init {
         require(id.isNotBlank()) { "Layer ID cannot be blank" }
         require(moduleId.isNotBlank()) { "Layer module ID cannot be blank" }
         require(displayName.isNotBlank()) { "Layer display name cannot be blank" }
+        require(groupId == null || groupId.matches(Regex("[A-Za-z0-9_-]{1,80}"))) {
+            "Group ID must be a safe stable identifier"
+        }
     }
 }
 
