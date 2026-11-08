@@ -30,6 +30,7 @@ class SceneEditorActivity : Activity() {
         const val EXTRA_SCENE_NAME = "scene_editor_name"
         private const val TEST_IMAGE_MODULE = "oss.source.image.static"
         private const val REQUEST_PICK_IMAGE = 5101
+        private const val REQUEST_PICK_GIF = 5102
     }
 
     private lateinit var repository: SceneDocumentRepository
@@ -187,7 +188,9 @@ class SceneEditorActivity : Activity() {
             gravity = Gravity.CENTER
         }
         stickerRow.addView(makeButton("＋ Stiker", 11) { showStickerPicker() },
-            LinearLayout.LayoutParams(0, dp(42), 1f))
+            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(4) })
+        stickerRow.addView(makeButton("＋ GIF", 11) { openGifPicker() },
+            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(4) })
         root.addView(stickerRow)
 
         val secondRow = LinearLayout(this).apply {
@@ -954,11 +957,50 @@ class SceneEditorActivity : Activity() {
         }
     }
 
+    private fun openGifPicker() {
+        val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "image/gif"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        try {
+            startActivityForResult(picker, REQUEST_PICK_GIF)
+        } catch (error: Exception) {
+            Toast.makeText(this, "Pemilih GIF tidak tersedia: ${error.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
     @Deprecated("Uses the platform document picker result callback")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQUEST_PICK_IMAGE || resultCode != RESULT_OK) return
+        if (resultCode != RESULT_OK) return
         val uri = data?.data ?: return
+        if (requestCode == REQUEST_PICK_GIF) {
+            try {
+                val imported = SceneMediaAssetStorage.import(this, uri)
+                require(imported.asset.kind == SceneMediaAsset.Kind.ANIMATED_IMAGE) {
+                    "Pilih file GIF animasi."
+                }
+                val nextZ = (document.layers.maxOfOrNull { it.zIndex } ?: -1) + 1
+                val layer = SceneLayer(
+                    id = "gif_" + java.util.UUID.randomUUID().toString().replace("-", ""),
+                    moduleId = SceneGifLayerConfig.MODULE_ID,
+                    displayName = "GIF ${document.layers.size + 1}",
+                    zIndex = nextZ,
+                    transform = SceneTransform(x = 0.34f, y = 0.32f, width = 0.32f, height = 0.32f),
+                    configuration = SceneGifLayerConfig(imported.asset.id).toMap()
+                )
+                checkpointHistory()
+                document = document.copy(layers = document.layers + layer)
+                editor.setScene(document, layer.id)
+                streamService?.applySceneDocument(document)
+                statusView.text = "GIF ditambahkan. Animasi akan berjalan saat scene dirender di LIVE."
+            } catch (error: Exception) {
+                Toast.makeText(this, "Gagal mengimpor GIF: ${error.message ?: "format tidak didukung"}", Toast.LENGTH_LONG).show()
+            }
+            return
+        }
+        if (requestCode != REQUEST_PICK_IMAGE) return
         try {
             val imported = SceneImageStorage.importImage(this, uri)
             val nextZ = (document.layers.maxOfOrNull { it.zIndex } ?: -1) + 1
@@ -971,12 +1013,7 @@ class SceneEditorActivity : Activity() {
                 moduleId = TEST_IMAGE_MODULE,
                 displayName = "Image ${document.layers.size + 1}",
                 zIndex = nextZ,
-                transform = SceneTransform(
-                    x = 0.10f,
-                    y = 0.10f,
-                    width = width,
-                    height = height
-                ),
+                transform = SceneTransform(x = 0.10f, y = 0.10f, width = width, height = height),
                 configuration = mapOf(
                     "image_file_id" to imported.id,
                     "x_percent" to "10",
@@ -991,11 +1028,7 @@ class SceneEditorActivity : Activity() {
             streamService?.applySceneDocument(document)
             statusView.text = "Gambar berhasil diimpor. Geser, ubah ukuran, atau putar."
         } catch (error: Exception) {
-            Toast.makeText(
-                this,
-                "Gagal mengimpor gambar: ${error.message ?: "format tidak didukung"}",
-                Toast.LENGTH_LONG
-            ).show()
+            Toast.makeText(this, "Gagal mengimpor gambar: ${error.message ?: "format tidak didukung"}", Toast.LENGTH_LONG).show()
         }
     }
 
