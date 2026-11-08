@@ -30,6 +30,22 @@ class SceneLayerOperationsTest {
         assertEquals(.8f, moved.layers[2].transform.x, 0.0001f)
     }
 
+    @Test fun resizingAGroupScalesAllMembersAroundSharedBounds() {
+        val original = SceneLayerOperations.group(scene(), setOf("a", "b"), "g")
+        val bounds = SceneTransform(x = .1f, y = .1f, width = .6f, height = .6f)
+        val resized = SceneLayerOperations.resizeGroup(original, "g", bounds, .9f, .3f)
+
+        assertEquals(.1f, resized.layers[0].transform.x, 0.0001f)
+        assertEquals(.1f, resized.layers[0].transform.y, 0.0001f)
+        assertEquals(.3f, resized.layers[0].transform.width, 0.0001f)
+        assertEquals(.1f, resized.layers[0].transform.height, 0.0001f)
+        assertEquals(.7f, resized.layers[1].transform.x, 0.0001f)
+        assertEquals(.3f, resized.layers[1].transform.y, 0.0001f)
+        assertEquals(.3f, resized.layers[1].transform.width, 0.0001f)
+        assertEquals(.1f, resized.layers[1].transform.height, 0.0001f)
+        assertEquals(scene().layers[2].transform, resized.layers[2].transform)
+    }
+
     @Test fun alignsAndDistributesSelectedLayers() {
         val aligned = SceneLayerOperations.align(scene(), setOf("a","b"), SceneLayerOperations.Edge.LEFT)
         assertEquals(.1f, aligned.layers[0].transform.x, 0.0001f)
