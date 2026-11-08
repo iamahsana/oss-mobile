@@ -14,6 +14,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -30,6 +31,7 @@ class SceneEditorActivity : Activity() {
     private lateinit var editor: SceneEditorCanvasView
     private lateinit var titleView: TextView
     private lateinit var statusView: TextView
+    private lateinit var canvasSizeButton: Button
     private lateinit var document: SceneDocument
     private var streamService: ScreenStreamService? = null
     private var serviceBound = false
@@ -93,6 +95,12 @@ class SceneEditorActivity : Activity() {
         }
         root.addView(statusView)
 
+        canvasSizeButton = makeButton(canvasButtonLabel(), 12) { showCanvasSizes() }
+        root.addView(canvasSizeButton,
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)).apply {
+                bottomMargin = dp(6)
+            })
+
         editor = SceneEditorCanvasView(this).apply {
             setScene(document)
             onDocumentChanged = { updated ->
@@ -147,6 +155,72 @@ class SceneEditorActivity : Activity() {
         setContentView(root)
     }
 
+    private fun canvasButtonLabel(): String {
+        val canvas = document.canvas
+        return "Ukuran canvas  •  ${canvas.width} × ${canvas.height}"
+    }
+
+    private fun showCanvasSizes() {
+        val presets = listOf(
+            "Vertikal 9:16  •  720 × 1280" to SceneCanvas(720, 1280),
+            "Horizontal 16:9  •  1280 × 720" to SceneCanvas(1280, 720),
+            "Persegi 1:1  •  1080 × 1080" to SceneCanvas(1080, 1080),
+            "Potret 4:5  •  864 × 1080" to SceneCanvas(864, 1080)
+        )
+        val labels = (presets.map { it.first } + "Ukuran khusus…").toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Pilih ukuran canvas")
+            .setItems(labels) { _, index ->
+                if (index < presets.size) applyCanvasSize(presets[index].second)
+                else showCustomCanvasSize()
+            }
+            .setNegativeButton("Batal", null)
+            .show()
+    }
+
+    private fun showCustomCanvasSize() {
+        val fields = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+        }
+        val widthInput = EditText(this).apply {
+            hint = "Lebar (px)"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setText(document.canvas.width.toString())
+        }
+        val heightInput = EditText(this).apply {
+            hint = "Tinggi (px)"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setText(document.canvas.height.toString())
+        }
+        fields.addView(widthInput)
+        fields.addView(heightInput)
+        AlertDialog.Builder(this)
+            .setTitle("Ukuran canvas khusus")
+            .setView(fields)
+            .setPositiveButton("Terapkan") { _, _ ->
+                val width = widthInput.text.toString().toIntOrNull()
+                val height = heightInput.text.toString().toIntOrNull()
+                if (width == null || height == null || width !in 1..8192 || height !in 1..8192) {
+                    Toast.makeText(this, "Ukuran harus 1–8192 px.", Toast.LENGTH_LONG).show()
+                } else applyCanvasSize(SceneCanvas(width, height))
+            }
+            .setNegativeButton("Batal", null)
+            .show()
+    }
+
+    private fun applyCanvasSize(canvas: SceneCanvas) {
+        document = document.copy(canvas = canvas)
+        canvasSizeButton.text = canvasButtonLabel()
+        editor.setScene(document, editor.selectedLayer()?.id)
+        streamService?.applySceneDocument(document)
+        try {
+            repository.save(document)
+            statusView.text = "Canvas ${canvas.width} × ${canvas.height} • tersimpan"
+        } catch (error: Exception) {
+            statusView.text = "Canvas diubah, tetapi gagal menyimpan: ${error.message}"
+        }
+    }
     private fun addTestImage() {
         val nextZ = (document.layers.maxOfOrNull { it.zIndex } ?: -1) + 1
         val layer = SceneLayer(
