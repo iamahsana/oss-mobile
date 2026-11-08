@@ -14,6 +14,10 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.CheckBox
+import android.widget.RadioButton
+import android.widget.RadioGroup
+import android.widget.SeekBar
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -135,15 +139,20 @@ class SceneEditorActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
         }
-        firstRow.addView(makeButton("＋ Teks", 12) { showAddTextDialog() },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(4) })
-        firstRow.addView(makeButton("＋ Galeri", 12) { openImagePicker() },
+        firstRow.addView(makeButton("＋ Teks", 10) { showAddTextDialog() },
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(3) })
+        firstRow.addView(makeButton("＋ Galeri", 10) { openImagePicker() },
             LinearLayout.LayoutParams(0, dp(48), 1f).apply {
-                marginStart = dp(4)
-                marginEnd = dp(4)
+                marginStart = dp(3)
+                marginEnd = dp(3)
             })
-        firstRow.addView(makeButton("Layers", 12) { showLayers() },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(4) })
+        firstRow.addView(makeButton("Edit teks", 10) { editSelectedText() },
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                marginStart = dp(3)
+                marginEnd = dp(3)
+            })
+        firstRow.addView(makeButton("Layers", 10) { showLayers() },
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(3) })
         root.addView(firstRow)
 
         val secondRow = LinearLayout(this).apply {
@@ -293,6 +302,148 @@ class SceneEditorActivity : Activity() {
         editor.setScene(document, layer.id)
         streamService?.applySceneDocument(document)
         statusView.text = "Layer teks ditambahkan. Geser, ubah ukuran, atau putar."
+    }
+
+    private fun editSelectedText() {
+        val selected = editor.selectedLayer() ?: return noSelection()
+        if (selected.moduleId != StaticTextLayerConfig.MODULE_ID) {
+            Toast.makeText(this, "Pilih layer teks terlebih dahulu.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val current = StaticTextLayerConfig.from(selected.configuration)
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+        }
+        val textInput = EditText(this).apply {
+            setText(current.text)
+            hint = "Tulis teks"
+            minLines = 2
+            maxLines = 5
+            gravity = Gravity.TOP or Gravity.START
+        }
+        panel.addView(textInput)
+        val sizeLabel = TextView(this).apply {
+            setTextColor(Color.WHITE)
+            text = "Ukuran teks: ${current.textSize.toInt()}"
+            setPadding(0, dp(12), 0, dp(4))
+        }
+        panel.addView(sizeLabel)
+        val sizeSeek = SeekBar(this).apply {
+            max = 240
+            progress = (current.textSize.toInt() - 16).coerceIn(0, 240)
+        }
+        sizeSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                sizeLabel.text = "Ukuran teks: ${progress + 16}"
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        panel.addView(sizeSeek)
+        val boldCheck = CheckBox(this).apply {
+            text = "Tebal (bold)"
+            setTextColor(Color.WHITE)
+            isChecked = current.bold
+        }
+        panel.addView(boldCheck)
+        val colorLabel = TextView(this).apply {
+            text = "Warna"
+            setTextColor(Color.WHITE)
+            setPadding(0, dp(8), 0, dp(2))
+        }
+        panel.addView(colorLabel)
+        val colors = listOf(
+            "Putih" to Color.WHITE,
+            "Cyan" to Color.rgb(65, 213, 245),
+            "Kuning" to Color.YELLOW,
+            "Merah muda" to Color.rgb(255, 125, 190),
+            "Hijau" to Color.rgb(110, 235, 145)
+        )
+        val colorGroup = RadioGroup(this).apply { orientation = RadioGroup.HORIZONTAL }
+        var selectedColor = current.color
+        colors.forEachIndexed { index, item ->
+            val radio = RadioButton(this).apply {
+                id = View.generateViewId()
+                text = item.first
+                textSize = 11f
+                setTextColor(item.second)
+                if (item.second == current.color) selectedColor = item.second
+            }
+            colorGroup.addView(radio)
+            if (item.second == current.color) colorGroup.check(radio.id)
+        }
+        colorGroup.setOnCheckedChangeListener { group, checkedId ->
+            selectedColor = colors.firstOrNull { (label, _) ->
+                (0 until group.childCount).any { i ->
+                    val child = group.getChildAt(i) as? RadioButton
+                    child?.id == checkedId && child.text.toString() == label
+                }
+            }?.second ?: selectedColor
+        }
+        panel.addView(colorGroup)
+        val alignLabel = TextView(this).apply {
+            text = "Perataan"
+            setTextColor(Color.WHITE)
+            setPadding(0, dp(8), 0, dp(2))
+        }
+        panel.addView(alignLabel)
+        val alignmentGroup = RadioGroup(this).apply { orientation = RadioGroup.HORIZONTAL }
+        val alignments = listOf("Kiri" to StaticTextLayerConfig.Alignment.LEFT,
+            "Tengah" to StaticTextLayerConfig.Alignment.CENTER,
+            "Kanan" to StaticTextLayerConfig.Alignment.RIGHT)
+        alignments.forEach { item ->
+            val radio = RadioButton(this).apply {
+                id = View.generateViewId()
+                text = item.first
+                setTextColor(Color.WHITE)
+            }
+            alignmentGroup.addView(radio)
+            if (item.second == current.alignment) alignmentGroup.check(radio.id)
+        }
+        panel.addView(alignmentGroup)
+        AlertDialog.Builder(this)
+            .setTitle("Pengaturan teks")
+            .setView(panel)
+            .setPositiveButton("Terapkan") { _, _ ->
+                val value = textInput.text.toString().trim()
+                if (value.isBlank() || value.length > 500) {
+                    Toast.makeText(this, "Teks harus berisi 1–500 karakter.", Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                val alignment = alignments.firstOrNull { (label, _) ->
+                    (0 until alignmentGroup.childCount).any { i ->
+                        val child = alignmentGroup.getChildAt(i) as? RadioButton
+                        child?.id == alignmentGroup.checkedRadioButtonId &&
+                            child.text.toString() == label
+                    }
+                }?.second ?: current.alignment
+                val config = StaticTextLayerConfig(
+                    text = value,
+                    color = selectedColor,
+                    textSize = (sizeSeek.progress + 16).toFloat(),
+                    bold = boldCheck.isChecked,
+                    alignment = alignment
+                )
+                val bitmap = TextLayerBitmapFactory.create(config)
+                val width = selected.transform.width
+                val height = (width * document.canvas.width / bitmap.width *
+                    bitmap.height / document.canvas.height).coerceIn(0.02f, 2f)
+                bitmap.recycle()
+                val updated = selected.copy(
+                    displayName = value.replace("\\n", " ").take(22).ifBlank { "Teks" },
+                    transform = selected.transform.copy(height = height),
+                    configuration = config.toMap()
+                )
+                document = document.copy(layers = document.layers.map {
+                    if (it.id == selected.id) updated else it
+                })
+                editor.setScene(document, selected.id)
+                streamService?.applySceneDocument(document)
+                statusView.text = "Pengaturan teks diterapkan."
+            }
+            .setNegativeButton("Batal", null)
+            .show()
     }
 
     private fun openImagePicker() {
