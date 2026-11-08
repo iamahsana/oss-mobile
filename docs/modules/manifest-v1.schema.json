@@ -4,39 +4,98 @@
   "title": "OSS Module Manifest v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["manifestVersion", "id", "name", "version", "minCoreApi", "publisher", "license", "kind", "elements"],
+  "required": [
+    "manifestVersion",
+    "id",
+    "name",
+    "version",
+    "minCoreApi",
+    "publisher",
+    "license",
+    "kind",
+    "elements"
+  ],
   "properties": {
-    "manifestVersion": { "const": 1 },
+    "manifestVersion": {
+      "const": 1
+    },
     "id": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9-]*){2,}$",
       "maxLength": 160
     },
-    "name": { "type": "string", "minLength": 1, "maxLength": 64 },
-    "description": { "type": "string", "maxLength": 500 },
-    "version": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$" },
-    "minCoreApi": { "type": "integer", "minimum": 1 },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$"
+    },
+    "minCoreApi": {
+      "type": "integer",
+      "minimum": 1
+    },
     "publisher": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "displayName"],
+      "required": [
+        "id",
+        "displayName"
+      ],
       "properties": {
-        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,63}$" },
-        "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
-        "website": { "type": "string", "format": "uri" }
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{2,63}$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "website": {
+          "type": "string",
+          "format": "uri"
+        }
       }
     },
-    "license": { "type": "string", "minLength": 1, "maxLength": 80 },
-    "kind": { "enum": ["overlay", "source", "widget", "template"] },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "kind": {
+      "enum": [
+        "overlay",
+        "source",
+        "widget",
+        "template"
+      ]
+    },
     "capabilities": {
       "type": "array",
       "uniqueItems": true,
-      "items": { "enum": ["visual.render", "property.controls", "scene.template"] }
+      "items": {
+        "enum": [
+          "visual.render",
+          "property.controls",
+          "scene.template"
+        ]
+      }
     },
     "permissions": {
       "type": "array",
       "uniqueItems": true,
-      "items": { "enum": ["media.read.package"] }
+      "items": {
+        "enum": [
+          "media.read.package"
+        ]
+      }
     },
     "elements": {
       "type": "array",
@@ -45,22 +104,69 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["key", "type", "default"],
+        "required": [
+          "key",
+          "type",
+          "default"
+        ],
         "properties": {
-          "key": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,47}$" },
-          "type": { "enum": ["text", "image", "shape"] },
-          "default": { "type": ["string", "number", "boolean", "object"] },
-          "asset": { "type": "string", "pattern": "^assets/(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9_-][A-Za-z0-9._/-]*$" },
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,47}$"
+          },
+          "type": {
+            "enum": [
+              "text",
+              "image",
+              "shape"
+            ]
+          },
+          "default": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "object"
+            ]
+          },
+          "asset": {
+            "type": "string",
+            "pattern": "^assets/(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9_-][A-Za-z0-9._/-]*$"
+          },
           "transform": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "x": { "type": "number", "minimum": -1, "maximum": 2 },
-              "y": { "type": "number", "minimum": -1, "maximum": 2 },
-              "width": { "type": "number", "exclusiveMinimum": 0, "maximum": 2 },
-              "height": { "type": "number", "exclusiveMinimum": 0, "maximum": 2 },
-              "rotation": { "type": "number", "minimum": -360, "maximum": 360 },
-              "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+              "x": {
+                "type": "number",
+                "minimum": -1,
+                "maximum": 2
+              },
+              "y": {
+                "type": "number",
+                "minimum": -1,
+                "maximum": 2
+              },
+              "width": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 2
+              },
+              "height": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 2
+              },
+              "rotation": {
+                "type": "number",
+                "minimum": -360,
+                "maximum": 360
+              },
+              "opacity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
             }
           }
         }
@@ -72,16 +178,94 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["key", "label", "control", "target"],
+        "required": [
+          "key",
+          "label",
+          "control",
+          "target"
+        ],
         "properties": {
-          "key": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,47}$" },
-          "label": { "type": "string", "minLength": 1, "maxLength": 48 },
-          "control": { "enum": ["text", "number", "toggle", "choice", "color"] },
-          "target": { "type": "string", "minLength": 1, "maxLength": 128 },
-          "min": { "type": "number" },
-          "max": { "type": "number" },
-          "choices": { "type": "array", "maxItems": 24, "items": { "type": "string", "maxLength": 64 } }
-        }
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,47}$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 48
+          },
+          "control": {
+            "enum": [
+              "text",
+              "number",
+              "toggle",
+              "choice",
+              "color"
+            ]
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^elements\\\\.[a-z][a-z0-9_]{0,47}\\\\.(default|transform\\\\.(x|y|width|height|rotation|opacity))$"
+          },
+          "min": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          },
+          "choices": {
+            "type": "array",
+            "maxItems": 24,
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "control": {
+                  "const": "number"
+                }
+              },
+              "required": [
+                "control"
+              ]
+            },
+            "then": {
+              "required": [
+                "min",
+                "max"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "control": {
+                  "const": "choice"
+                }
+              },
+              "required": [
+                "control"
+              ]
+            },
+            "then": {
+              "required": [
+                "choices"
+              ],
+              "properties": {
+                "choices": {
+                  "minItems": 1
+                }
+              }
+            }
+          }
+        ]
       }
     }
   }
