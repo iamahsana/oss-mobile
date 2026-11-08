@@ -513,7 +513,7 @@ class SceneEditorActivity : Activity() {
             .setTitle(if (templates) "Template scene" else "Scene tersimpan")
             .setItems(entries.toTypedArray()) { _, index ->
                 if (templates) {
-                    persistCurrentScene()
+                    if (!persistCurrentScene()) return@setItems
                     checkpointHistory()
                     document = SceneTemplateCatalog.create(templateEntries[index], document.id)
                     history = SceneHistory(document)
@@ -536,7 +536,7 @@ class SceneEditorActivity : Activity() {
             .setItems(actions.toTypedArray()) { _, index ->
                 when (actions[index]) {
                     "Buka scene" -> {
-                        persistCurrentScene()
+                        if (!persistCurrentScene()) return@setItems
                         document = scene
                         history = SceneHistory(document)
                         applyOpenedScene("Scene ${document.name} dibuka.")
@@ -599,10 +599,14 @@ class SceneEditorActivity : Activity() {
             .show()
     }
 
-    private fun persistCurrentScene() {
-        runCatching { repository.save(document) }
-            .onFailure { statusView.text = "Gagal menyimpan scene sebelumnya: ${it.message}" }
-    }
+    private fun persistCurrentScene(): Boolean =
+        runCatching {
+            repository.save(document)
+            true
+        }.getOrElse {
+            statusView.text = "Gagal menyimpan scene sebelumnya: ${it.message}"
+            false
+        }
 
     private fun applyOpenedScene(message: String) {
         editor.setScene(document, null)
