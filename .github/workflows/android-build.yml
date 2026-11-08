@@ -2,9 +2,9 @@ name: Android debug build
 
 on:
   push:
-    branches: [main]
+    branches: [main, "research/**", "feature/**"]
   pull_request:
-    branches: [main]
+    branches: [main, "research/**"]
   workflow_dispatch:
 
 permissions:
@@ -45,7 +45,7 @@ jobs:
         with:
           gradle-version: "8.13"
 
-      - name: Run audio core unit tests
+      - name: Run unit tests
         run: gradle --no-daemon testDebugUnitTest
 
       - name: Assemble debug APK
