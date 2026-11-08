@@ -867,19 +867,24 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             val bounds = multiStartBounds ?: selectionHandleLayer()?.transform ?: return
             val width = (bounds.width + dx / (scale * document.canvas.width)).coerceIn(0.03f, 2f)
             val height = (bounds.height + dy / (scale * document.canvas.height)).coerceIn(0.03f, 2f)
-            val scaleX = width / bounds.width
-            val scaleY = height / bounds.height
-            document = document.copy(layers = document.layers.map { item ->
-                if (item.id in transformIds && !item.locked) {
-                    val t = multiStartTransforms[item.id] ?: item.transform
-                    item.copy(transform = t.copy(
-                        x = bounds.x + (t.x - bounds.x) * scaleX,
-                        y = bounds.y + (t.y - bounds.y) * scaleY,
-                        width = (t.width * scaleX).coerceIn(0.03f, 2f),
-                        height = (t.height * scaleY).coerceIn(0.03f, 2f)
-                    ))
-                } else item
-            })
+            val groupId = layer.groupId
+            document = if (groupId != null) {
+                SceneLayerOperations.resizeGroup(document, groupId, bounds, width, height)
+            } else {
+                val scaleX = width / bounds.width
+                val scaleY = height / bounds.height
+                document.copy(layers = document.layers.map { item ->
+                    if (item.id in transformIds && !item.locked) {
+                        val t = multiStartTransforms[item.id] ?: item.transform
+                        item.copy(transform = t.copy(
+                            x = bounds.x + (t.x - bounds.x) * scaleX,
+                            y = bounds.y + (t.y - bounds.y) * scaleY,
+                            width = (t.width * scaleX).coerceIn(0.03f, 2f),
+                            height = (t.height * scaleY).coerceIn(0.03f, 2f)
+                        ))
+                    } else item
+                })
+            }
             onDocumentChanged?.invoke(document)
             invalidate()
             return
