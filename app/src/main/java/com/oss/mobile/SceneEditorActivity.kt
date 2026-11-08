@@ -1454,9 +1454,9 @@ class SceneEditorActivity : Activity() {
             return inputs
         }
 
-        val xy = row("X", t.x, "Y", t.y)
-        val wh = row("Lebar", t.width, "Tinggi", t.height)
-        val ro = row("Rotasi", t.rotationDegrees, "Opacity", t.opacity)
+        val xy = row("X" to t.x, "Y" to t.y)
+        val wh = row("Lebar" to t.width, "Tinggi" to t.height)
+        val ro = row("Rotasi" to t.rotationDegrees, "Opacity" to t.opacity)
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END
