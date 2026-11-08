@@ -301,7 +301,21 @@ class ScreenStreamService : Service(), ConnectChecker {
             })
             diagnosticsHandler.post(systemDiagnosticTask)
             val isMixedAudio = audioMode == AUDIO_MODE_MIX
-            val prepared = output.prepareVideo(720, 1280, 1_800_000, rotation = 0) &&
+            // Encoder dimensions follow the saved scene output, not the editor viewport
+            // or a hard-coded portrait assumption. Keep dimensions even and bounded.
+            val savedSceneId = intent.getStringExtra(EXTRA_SCENE_ID)
+            val savedScene = savedSceneId?.let { id ->
+                runCatching { SceneDocumentRepository(this).load(id) }.getOrNull()
+            }
+            val sceneCanvas = savedScene?.canvas ?: SceneCanvas()
+            val dimensionScale = minOf(
+                1f,
+                1280f / maxOf(sceneCanvas.width, sceneCanvas.height).toFloat()
+            )
+            val outputWidth = ((sceneCanvas.width * dimensionScale).toInt().coerceAtLeast(2) / 2) * 2
+            val outputHeight = ((sceneCanvas.height * dimensionScale).toInt().coerceAtLeast(2) / 2) * 2
+
+            val prepared = output.prepareVideo(outputWidth, outputHeight, 1_800_000, rotation = 0) &&
                 output.prepareAudio(
                     32000,
                     true,
@@ -314,7 +328,7 @@ class ScreenStreamService : Service(), ConnectChecker {
                     noiseSuppressor = false
                 )
 
-            OssDiagnostics.center.record(DiagnosticCategory.VIDEO, if (prepared) DiagnosticSeverity.INFO else DiagnosticSeverity.ERROR, "ENCODER_PREPARE", "Encoder preparation completed", mapOf("prepared" to prepared.toString(), "width" to "720", "height" to "1280", "fps" to "15", "audioSampleRate" to "32000"))
+            OssDiagnostics.center.record(DiagnosticCategory.VIDEO, if (prepared) DiagnosticSeverity.INFO else DiagnosticSeverity.ERROR, "ENCODER_PREPARE", "Encoder preparation completed", mapOf("prepared" to prepared.toString(), "width" to outputWidth.toString(), "height" to outputHeight.toString(), "fps" to "15", "audioSampleRate" to "32000"))
             if (!prepared) throw IllegalStateException("Encoder tidak berhasil disiapkan")
 
             // Prefer the wired headset microphone when Android exposes one.
@@ -327,10 +341,6 @@ class ScreenStreamService : Service(), ConnectChecker {
                 listOf(StaticImageOverlayModule(), StaticTextOverlayModule(), ShapeOverlayModule(), EmojiStickerOverlayModule(), SceneGifOverlayModule(), SceneVideoOverlayModule()),
                 overlayCompositor!!
             )
-            val savedSceneId = intent.getStringExtra(EXTRA_SCENE_ID)
-            val savedScene = savedSceneId?.let { id ->
-                runCatching { SceneDocumentRepository(this).load(id) }.getOrNull()
-            }
             if (savedScene != null) {
                 sceneRendererController?.apply(savedScene)
             } else if (intent.getBooleanExtra(EXTRA_TEST_IMAGE_OVERLAY, false)) {
