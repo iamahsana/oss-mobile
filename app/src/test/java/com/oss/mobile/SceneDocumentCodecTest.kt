@@ -86,3 +86,26 @@ class SceneDocumentCodecTest {
         }
     }
 }
+
+
+    @Test
+    fun preservesLayerGroupIdsAndSupportsLegacyDocumentsWithoutGroups() {
+        val grouped = SceneDocument(
+            id = "grouped",
+            name = "Grouped",
+            layers = listOf(
+                SceneLayer("a", "module.a", "A", 0, groupId = "brand"),
+                SceneLayer("b", "module.b", "B", 1, groupId = "brand"),
+                SceneLayer("c", "module.c", "C", 2)
+            )
+        )
+        val decoded = SceneDocumentCodec.decode(SceneDocumentCodec.encode(grouped))
+        assertEquals(listOf("brand", "brand", null), decoded.layers.map { it.groupId })
+    }
+
+    @Test
+    fun rejectsUnsafeGroupIds() {
+        assertThrows(IllegalArgumentException::class.java) {
+            SceneLayer("a", "module.a", "A", 0, groupId = "../unsafe")
+        }
+    }
