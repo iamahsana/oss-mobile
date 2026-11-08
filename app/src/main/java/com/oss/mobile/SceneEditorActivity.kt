@@ -207,7 +207,7 @@ class SceneEditorActivity : Activity() {
                 StaticTextLayerConfig.MODULE_ID -> item("Teks & gaya") { editSelectedText() }
                 StaticImageLayerConfig.MODULE_ID -> item("Gambar / crop") { editSelectedImage() }
                 ShapeLayerConfig.MODULE_ID -> item("Warna / bentuk") { editSelectedShape() }
-                StickerLayerConfig.MODULE_ID -> item("Stiker") { editSelectedSticker() }
+                StickerLayerConfig.MODULE_ID -> item("Stiker") { Toast.makeText(this, "Pengaturan stiker tersedia melalui posisi, ukuran, dan opacity.", Toast.LENGTH_SHORT).show() }
             }
             item("Duplikat") { duplicateSelected() }
             item("Urutan") { showLayers() }
@@ -216,7 +216,7 @@ class SceneEditorActivity : Activity() {
             item("Hapus") { deleteSelected() }
             item("Selesai") {
                 dockShowingProperties = false
-                editor.clearSelection()
+                editor.setScene(document, null)
                 renderBottomDock()
             }
         } else {
