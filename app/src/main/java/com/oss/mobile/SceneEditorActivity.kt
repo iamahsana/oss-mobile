@@ -1331,14 +1331,76 @@ class SceneEditorActivity : Activity() {
                 append(if (layer.visible) "● " else "○ ")
                 append(if (layer.locked) "🔒 " else "")
                 append(layer.displayName)
+                append("   •   ")
+                append(layer.moduleId.substringAfterLast('.'))
             }
         }.toTypedArray()
         AlertDialog.Builder(this)
-            .setTitle("Pilih layer")
+            .setTitle("Layer • pilih untuk mengelola")
             .setItems(labels) { _, index ->
                 editor.selectLayer(layers[index].id)
+                showLayerActions(layers[index].id)
             }
             .setNegativeButton("Tutup", null)
+            .show()
+    }
+
+    private fun showLayerActions(layerId: String) {
+        val layer = document.layers.firstOrNull { it.id == layerId } ?: return
+        editor.selectLayer(layerId)
+        val actions = mutableListOf<String>()
+        actions += if (layer.visible) "Sembunyikan" else "Tampilkan"
+        actions += if (layer.locked) "Buka kunci" else "Kunci posisi"
+        actions += "Naikkan satu tingkat"
+        actions += "Turunkan satu tingkat"
+        if (layer.moduleId != SceneScreenLayerConfig.MODULE_ID) {
+            actions += "Duplikat"
+            actions += "Ganti nama"
+            actions += "Hapus"
+        }
+        if (layer.groupId != null) actions += "Lepas dari grup"
+        AlertDialog.Builder(this)
+            .setTitle(layer.displayName)
+            .setItems(actions.toTypedArray()) { _, index ->
+                when (actions[index]) {
+                    "Sembunyikan", "Tampilkan" -> toggleVisibility()
+                    "Kunci posisi", "Buka kunci" -> toggleLock()
+                    "Naikkan satu tingkat" -> moveSelectedLayer(1)
+                    "Turunkan satu tingkat" -> moveSelectedLayer(-1)
+                    "Duplikat" -> duplicateSelected()
+                    "Ganti nama" -> renameSelectedLayer()
+                    "Hapus" -> deleteSelected()
+                    "Lepas dari grup" -> ungroupSelected()
+                }
+            }
+            .setNegativeButton("Selesai", null)
+            .show()
+    }
+
+    private fun renameSelectedLayer() {
+        val selected = editor.selectedLayer() ?: return noSelection()
+        val input = EditText(this).apply {
+            setText(selected.displayName)
+            selectAll()
+            hint = "Nama layer"
+            filters = arrayOf(android.text.InputFilter.LengthFilter(64))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Ganti nama layer")
+            .setView(input)
+            .setPositiveButton("Simpan") { _, _ ->
+                val name = input.text.toString().trim()
+                if (name.isBlank()) {
+                    Toast.makeText(this, "Nama layer tidak boleh kosong.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                checkpointHistory()
+                document = document.copy(layers = document.layers.map {
+                    if (it.id == selected.id) it.copy(displayName = name) else it
+                })
+                publishSceneEdit(selected.id, "Nama layer diperbarui.")
+            }
+            .setNegativeButton("Batal", null)
             .show()
     }
 
