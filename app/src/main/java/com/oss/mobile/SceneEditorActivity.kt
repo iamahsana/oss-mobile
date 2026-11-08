@@ -240,11 +240,22 @@ class SceneEditorActivity : Activity() {
     }
 
     private fun showScreenSourceInfo() {
-        AlertDialog.Builder(this)
-            .setTitle("Share Screen sebagai elemen")
-            .setMessage("Share Screen akan menjadi sumber visual tersendiri di dalam scene: dapat diposisikan, diubah ukuran, di-crop, dan diatur urutan layer-nya. Izin MediaProjection Android tetap diminta saat memulai LIVE. Integrasi renderer sumber layar per-layer masih perlu diselesaikan sebelum tombol ini menambahkan layer aktif.")
-            .setPositiveButton("Mengerti", null)
-            .show()
+        if (document.layers.any { it.moduleId == SceneScreenLayerConfig.MODULE_ID }) {
+            Toast.makeText(this, "Share Screen sudah ada di scene.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        checkpointHistory()
+        val nextZ = (document.layers.maxOfOrNull { it.zIndex } ?: -1) + 1
+        val layer = SceneLayer(
+            id = "screen_" + java.util.UUID.randomUUID().toString().replace("-", ""),
+            moduleId = SceneScreenLayerConfig.MODULE_ID,
+            displayName = "Share Screen",
+            zIndex = nextZ,
+            transform = SceneTransform(x = 0f, y = 0f, width = 1f, height = 1f),
+            configuration = SceneScreenLayerConfig().toMap()
+        )
+        document = document.copy(layers = document.layers + layer)
+        publishSceneEdit(layer.id, "Share Screen ditambahkan sebagai elemen. Atur ukuran dan posisinya di canvas.")
     }
 
     private fun chooseLayersForGrouping() {
