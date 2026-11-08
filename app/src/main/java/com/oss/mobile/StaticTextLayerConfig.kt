@@ -12,13 +12,16 @@ data class StaticTextLayerConfig(
     val color: Int = Color.WHITE,
     val textSize: Float = 64f,
     val bold: Boolean = false,
-    val alignment: Alignment = Alignment.LEFT
+    val alignment: Alignment = Alignment.LEFT,
+    val outlineWidth: Float = 0f,
+    val shadow: Boolean = false
 ) {
     enum class Alignment { LEFT, CENTER, RIGHT }
 
     init {
         require(text.isNotBlank() && text.length <= 500) { "Text must contain 1–500 characters" }
         require(textSize.isFinite() && textSize in 16f..256f) { "Text size must be 16–256" }
+        require(outlineWidth.isFinite() && outlineWidth in 0f..12f) { "Outline width must be 0–12" }
     }
 
     fun toMap(): Map<String, String> = mapOf(
@@ -26,7 +29,9 @@ data class StaticTextLayerConfig(
         KEY_COLOR to String.format("#%08X", color),
         KEY_SIZE to textSize.toString(),
         KEY_BOLD to bold.toString(),
-        KEY_ALIGNMENT to alignment.name
+        KEY_ALIGNMENT to alignment.name,
+        KEY_OUTLINE_WIDTH to outlineWidth.toString(),
+        KEY_SHADOW to shadow.toString()
     )
 
     companion object {
@@ -36,6 +41,8 @@ data class StaticTextLayerConfig(
         const val KEY_SIZE = "text_size"
         const val KEY_BOLD = "bold"
         const val KEY_ALIGNMENT = "alignment"
+        const val KEY_OUTLINE_WIDTH = "outline_width"
+        const val KEY_SHADOW = "shadow"
 
         fun from(values: Map<String, String>): StaticTextLayerConfig {
             val text = values[KEY_TEXT] ?: "Teks"
@@ -46,7 +53,9 @@ data class StaticTextLayerConfig(
             val alignment = runCatching {
                 Alignment.valueOf(values[KEY_ALIGNMENT] ?: "LEFT")
             }.getOrDefault(Alignment.LEFT)
-            return StaticTextLayerConfig(text, color, size, bold, alignment)
+            val outlineWidth = values[KEY_OUTLINE_WIDTH]?.toFloatOrNull()?.coerceIn(0f, 12f) ?: 0f
+            val shadow = values[KEY_SHADOW]?.toBooleanStrictOrNull() ?: false
+            return StaticTextLayerConfig(text, color, size, bold, alignment, outlineWidth, shadow)
         }
     }
 }
@@ -74,10 +83,12 @@ object TextLayerBitmapFactory {
             }
             lines += line
         }
-        val lineHeight = (config.textSize * 1.28f).toInt().coerceAtLeast(24)
+        val effectPadding = (config.outlineWidth * 2f + if (config.shadow) 12f else 0f).toInt()
+        val padding = 16 + effectPadding
+        val lineHeight = (config.textSize * 1.28f + effectPadding).toInt().coerceAtLeast(24)
         val contentWidth = lines.maxOfOrNull { paint.measureText(it) } ?: config.textSize
-        val width = (contentWidth + 32f).toInt().coerceIn(64, wrapWidth)
-        val height = (lines.size * lineHeight + 32).coerceIn(64, 4096)
+        val width = (contentWidth + padding * 2f).toInt().coerceIn(64, wrapWidth)
+        val height = (lines.size * lineHeight + padding * 2).coerceIn(64, 4096)
         val alignedPaint = Paint(paint).apply {
             textAlign = when (config.alignment) {
                 StaticTextLayerConfig.Alignment.LEFT -> Paint.Align.LEFT
@@ -86,14 +97,33 @@ object TextLayerBitmapFactory {
             }
         }
         val x = when (config.alignment) {
-            StaticTextLayerConfig.Alignment.LEFT -> 16f
+            StaticTextLayerConfig.Alignment.LEFT -> padding.toFloat()
             StaticTextLayerConfig.Alignment.CENTER -> width / 2f
-            StaticTextLayerConfig.Alignment.RIGHT -> width - 16f
+            StaticTextLayerConfig.Alignment.RIGHT -> width - padding.toFloat()
         }
         return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { bitmap ->
             val canvas = Canvas(bitmap)
             lines.take(120).forEachIndexed { index, line ->
-                canvas.drawText(line, x, 16f + config.textSize + index * lineHeight, alignedPaint)
+                val baseline = padding + config.textSize + index * lineHeight
+                if (config.shadow) {
+                    val shadowPaint = Paint(alignedPaint).apply {
+                        color = Color.BLACK
+                        style = Paint.Style.FILL
+                        setShadowLayer(6f, 3f, 3f, Color.BLACK)
+                    }
+                    canvas.drawText(line, x, baseline, shadowPaint)
+                    shadowPaint.clearShadowLayer()
+                }
+                if (config.outlineWidth > 0f) {
+                    val outlinePaint = Paint(alignedPaint).apply {
+                        color = Color.BLACK
+                        style = Paint.Style.STROKE
+                        strokeJoin = Paint.Join.ROUND
+                        strokeWidth = config.outlineWidth * 2f
+                    }
+                    canvas.drawText(line, x, baseline, outlinePaint)
+                }
+                canvas.drawText(line, x, baseline, alignedPaint)
             }
         }
     }
