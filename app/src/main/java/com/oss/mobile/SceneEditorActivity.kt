@@ -1317,6 +1317,10 @@ class SceneEditorActivity : Activity() {
 
     private fun deleteSelected() {
         val selected = editor.selectedLayer() ?: return noSelection()
+        if (selected.moduleId == SceneScreenLayerConfig.MODULE_ID) {
+            Toast.makeText(this, "Share Screen adalah sumber utama scene. Sembunyikan layer jika tidak ingin menampilkannya.", Toast.LENGTH_LONG).show()
+            return
+        }
         checkpointHistory()
         document = document.copy(layers = document.layers.filterNot { it.id == selected.id })
         editor.setScene(document, null)
@@ -1326,6 +1330,10 @@ class SceneEditorActivity : Activity() {
 
     private fun duplicateSelected() {
         val selected = editor.selectedLayer() ?: return noSelection()
+        if (selected.moduleId == SceneScreenLayerConfig.MODULE_ID) {
+            Toast.makeText(this, "Sumber Share Screen tidak bisa diduplikasi.", Toast.LENGTH_SHORT).show()
+            return
+        }
         val nextZ = (document.layers.maxOfOrNull { it.zIndex } ?: -1) + 1
         val copy = selected.copy(
             id = "layer_" + java.util.UUID.randomUUID().toString().replace("-", ""),
