@@ -12,7 +12,9 @@ data class StaticImageLayerConfig(
     val widthPercent: Float = 24f,
     val opacity: Float = 1f,
     val flipHorizontal: Boolean = false,
-    val flipVertical: Boolean = false
+    val flipVertical: Boolean = false,
+    val cropZoom: Float = 1f,
+    val maskShape: String = MASK_RECTANGLE
 ) {
     init {
         require((resourceId > 0) xor (imageFileId != null)) {
@@ -25,6 +27,8 @@ data class StaticImageLayerConfig(
         require(yPercent in 0f..100f) { "yPercent must be between 0 and 100" }
         require(widthPercent in 1f..100f) { "widthPercent must be between 1 and 100" }
         require(opacity in 0f..1f) { "opacity must be between 0 and 1" }
+        require(cropZoom in 1f..3f) { "cropZoom must be between 1 and 3" }
+        require(maskShape in MASK_SHAPES) { "Unsupported image mask shape" }
     }
 
     companion object {
@@ -46,7 +50,9 @@ data class StaticImageLayerConfig(
                 widthPercent = floatValue(KEY_WIDTH, 24f),
                 opacity = floatValue(KEY_OPACITY, 1f),
                 flipHorizontal = values[KEY_FLIP_HORIZONTAL]?.toBooleanStrictOrNull() ?: false,
-                flipVertical = values[KEY_FLIP_VERTICAL]?.toBooleanStrictOrNull() ?: false
+                flipVertical = values[KEY_FLIP_VERTICAL]?.toBooleanStrictOrNull() ?: false,
+                cropZoom = floatValue(KEY_CROP_ZOOM, 1f),
+                maskShape = values[KEY_MASK_SHAPE]?.takeIf { it in MASK_SHAPES } ?: MASK_RECTANGLE
             )
         }
 
@@ -58,5 +64,11 @@ data class StaticImageLayerConfig(
         const val KEY_OPACITY = "opacity"
         const val KEY_FLIP_HORIZONTAL = "flip_horizontal"
         const val KEY_FLIP_VERTICAL = "flip_vertical"
+        const val KEY_CROP_ZOOM = "crop_zoom"
+        const val KEY_MASK_SHAPE = "mask_shape"
+        const val MASK_RECTANGLE = "rectangle"
+        const val MASK_CIRCLE = "circle"
+        const val MASK_ROUNDED = "rounded"
+        val MASK_SHAPES = setOf(MASK_RECTANGLE, MASK_CIRCLE, MASK_ROUNDED)
     }
 }
