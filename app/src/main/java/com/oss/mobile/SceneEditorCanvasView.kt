@@ -81,6 +81,8 @@ class SceneEditorCanvasView(context: Context) : View(context) {
 
     private var document = SceneDocument(id = "editor", name = "Scene")
     private var selectedLayerId: String? = null
+    private val selectedLayerIds = linkedSetOf<String>()
+    private var multiSelectEnabled = false
     private var gesture = Gesture.NONE
     private var downX = 0f
     private var downY = 0f
@@ -98,6 +100,8 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     fun setScene(value: SceneDocument, selectedId: String? = selectedLayerId) {
         document = value
         selectedLayerId = selectedId?.takeIf { id -> value.layers.any { it.id == id } }
+        selectedLayerIds.retainAll(value.layers.map { it.id }.toSet())
+        selectedLayerId?.let(selectedLayerIds::add)
         onSelectionChanged?.invoke(selectedLayer())
         invalidate()
     }
@@ -109,9 +113,24 @@ class SceneEditorCanvasView(context: Context) : View(context) {
 
     fun selectLayer(id: String?) {
         selectedLayerId = id?.takeIf { key -> document.layers.any { it.id == key } }
+        selectedLayerIds.clear()
+        selectedLayerId?.let(selectedLayerIds::add)
         onSelectionChanged?.invoke(selectedLayer())
         invalidate()
     }
+
+    fun setMultiSelectEnabled(enabled: Boolean) {
+        multiSelectEnabled = enabled
+        if (!enabled && selectedLayerIds.size > 1) {
+            val keep = selectedLayerId
+            selectedLayerIds.clear()
+            keep?.let(selectedLayerIds::add)
+        }
+        invalidate()
+    }
+
+    fun isMultiSelectEnabled(): Boolean = multiSelectEnabled
+    fun selectedLayerIds(): Set<String> = selectedLayerIds.toSet()
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
@@ -130,7 +149,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         canvas.clipRect(outputRect)
         drawGrid(canvas, outputRect)
         document.renderOrder().forEach { layer ->
-            drawLayer(canvas, layer, left, top, scale, layer.id == selectedLayerId)
+            drawLayer(canvas, layer, left, top, scale, layer.id in selectedLayerIds)
         }
         verticalGuide?.let { x -> canvas.drawLine(x, outputRect.top, x, outputRect.bottom, guidePaint) }
         horizontalGuide?.let { y -> canvas.drawLine(outputRect.left, y, outputRect.right, y, guidePaint) }
@@ -505,10 +524,17 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                     else -> {
                         val hit = hitTest(event.x, event.y, scale)
                         if (hit != null) {
-                            selectLayer(hit.id)
+                            if (multiSelectEnabled) {
+                                if (hit.id !in selectedLayerIds) selectedLayerIds.add(hit.id)
+                                selectedLayerId = hit.id
+                                onSelectionChanged?.invoke(selectedLayer())
+                                invalidate()
+                            } else {
+                                selectLayer(hit.id)
+                            }
                             if (hit.locked) Gesture.NONE else Gesture.DRAG
                         } else {
-                            selectLayer(null)
+                            if (!multiSelectEnabled) selectLayer(null)
                             Gesture.NONE
                         }
                     }
@@ -549,6 +575,21 @@ class SceneEditorCanvasView(context: Context) : View(context) {
 
     private fun updateDraggedLayer(dx: Float, dy: Float, scale: Float) {
         val layer = selectedLayer() ?: return
+        if (multiSelectEnabled && selectedLayerIds.size > 1) {
+            val dxNormalized = dx / (scale * document.canvas.width)
+            val dyNormalized = dy / (scale * document.canvas.height)
+            document = document.copy(layers = document.layers.map { item ->
+                if (item.id in selectedLayerIds && !item.locked) item.copy(
+                    transform = item.transform.copy(
+                        x = (item.transform.x + dxNormalized).coerceIn(-1f, 2f),
+                        y = (item.transform.y + dyNormalized).coerceIn(-1f, 2f)
+                    )
+                ) else item
+            })
+            onDocumentChanged?.invoke(document)
+            invalidate()
+            return
+        }
         val old = layer.transform
         var nextX = (old.x + dx / (scale * document.canvas.width)).coerceIn(-1f, 2f)
         var nextY = (old.y + dy / (scale * document.canvas.height)).coerceIn(-1f, 2f)
