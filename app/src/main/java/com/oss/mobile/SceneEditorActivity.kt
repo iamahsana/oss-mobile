@@ -119,7 +119,8 @@ class SceneEditorActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        secondary.addView(makeButton("Canvas", 12) { showCanvasSizes() })
+        canvasSizeButton = makeButton("Canvas", 12) { showCanvasSizes() }
+        secondary.addView(canvasSizeButton)
         secondary.addView(makeButton("Layers", 12) { showLayers() })
         secondary.addView(makeButton("Template", 12) { showSceneLibrary(true) })
         secondary.addView(makeButton("Scene", 12) { showSceneLibrary(false) })
