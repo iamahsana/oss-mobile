@@ -3,7 +3,6 @@ package com.oss.mobile
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import com.pedro.encoder.input.gl.render.filters.BaseFilterRender
@@ -12,8 +11,8 @@ import com.pedro.encoder.input.gl.render.filters.BaseFilterRender
 data class ShapeLayerConfig(
     val shape: Shape = Shape.RECTANGLE,
     val fillEnabled: Boolean = true,
-    val fillColor: Int = Color.rgb(65, 190, 225),
-    val strokeColor: Int = Color.WHITE,
+    val fillColor: Int = 0xFF41BEE1.toInt(),
+    val strokeColor: Int = 0xFFFFFFFF.toInt(),
     val strokeWidth: Float = 8f,
     val cornerRadius: Float = 28f
 ) {
@@ -42,13 +41,21 @@ data class ShapeLayerConfig(
         const val KEY_STROKE_WIDTH = "stroke_width"
         const val KEY_CORNER_RADIUS = "corner_radius"
 
+        private fun parseArgb(value: String?, fallback: Int): Int {
+            val hex = value?.removePrefix("#") ?: return fallback
+            val parsed = hex.toLongOrNull(16) ?: return fallback
+            return when (hex.length) {
+                6 -> (0xFF000000L or parsed).toInt()
+                8 -> parsed.toInt()
+                else -> fallback
+            }
+        }
+
         fun from(values: Map<String, String>): ShapeLayerConfig {
             val shape = runCatching { Shape.valueOf(values[KEY_SHAPE] ?: "RECTANGLE") }
                 .getOrDefault(Shape.RECTANGLE)
-            val fillColor = runCatching { Color.parseColor(values[KEY_FILL_COLOR] ?: "#FF41BEE1") }
-                .getOrDefault(Color.rgb(65, 190, 225))
-            val strokeColor = runCatching { Color.parseColor(values[KEY_STROKE_COLOR] ?: "#FFFFFFFF") }
-                .getOrDefault(Color.WHITE)
+            val fillColor = parseArgb(values[KEY_FILL_COLOR], 0xFF41BEE1.toInt())
+            val strokeColor = parseArgb(values[KEY_STROKE_COLOR], 0xFFFFFFFF.toInt())
             return ShapeLayerConfig(
                 shape = shape,
                 fillEnabled = values[KEY_FILL_ENABLED]?.toBooleanStrictOrNull() ?: true,
