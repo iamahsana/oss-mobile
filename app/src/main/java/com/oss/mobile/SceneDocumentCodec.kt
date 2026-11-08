@@ -35,6 +35,7 @@ object SceneDocumentCodec {
             properties.setProperty(prefix + "z_index", layer.zIndex.toString())
             properties.setProperty(prefix + "visible", layer.visible.toString())
             properties.setProperty(prefix + "locked", layer.locked.toString())
+            layer.groupId?.let { properties.setProperty(prefix + "group_id", it) }
             properties.setProperty(prefix + "transform.x", layer.transform.x.toString())
             properties.setProperty(prefix + "transform.y", layer.transform.y.toString())
             properties.setProperty(prefix + "transform.width", layer.transform.width.toString())
@@ -116,7 +117,8 @@ object SceneDocumentCodec {
                 ),
                 visible = boolean(prefix + "visible"),
                 locked = boolean(prefix + "locked"),
-                configuration = configuration
+                configuration = configuration,
+                groupId = properties.getProperty(prefix + "group_id")
             )
         }
 
