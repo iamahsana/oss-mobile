@@ -223,7 +223,7 @@ class SceneEditorActivity : Activity() {
                             layer.copy(configuration = StaticTextLayerConfig.from(layer.configuration)
                                 .copy(textSize = (value + 16).toFloat()).toMap())
                         } },
-                        onFinish = { finishPropertyChange() }
+                        onFinish = { fitSelectedTextHeight(); finishPropertyChange() }
                     )
                     addPropertyToggle(items, "Bold", config.bold) { checked ->
                         updateSelectedLayer { layer -> layer.copy(configuration =
@@ -391,6 +391,18 @@ class SceneEditorActivity : Activity() {
         document = document.copy(layers = document.layers.map { if (it.id == selected.id) updated else it })
         editor.setScene(document, selected.id, notifySelection = false)
         streamService?.applySceneDocument(document)
+    }
+
+    private fun fitSelectedTextHeight() {
+        val selected = editor.selectedLayer() ?: return
+        if (selected.moduleId != StaticTextLayerConfig.MODULE_ID) return
+        val bitmap = runCatching {
+            TextLayerBitmapFactory.create(StaticTextLayerConfig.from(selected.configuration))
+        }.getOrNull() ?: return
+        val height = (selected.transform.width * document.canvas.width / bitmap.width *
+            bitmap.height / document.canvas.height).coerceIn(0.02f, 2f)
+        bitmap.recycle()
+        updateSelectedLayer { layer -> layer.copy(transform = layer.transform.copy(height = height)) }
     }
 
     private fun finishPropertyChange() {
