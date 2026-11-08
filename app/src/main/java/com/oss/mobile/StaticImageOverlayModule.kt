@@ -52,8 +52,9 @@ class StaticImageOverlayModule : OverlaySourceModule {
             Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
         } else bitmap
 
+        val finalBitmap = ImageLayerBitmapProcessor.process(renderBitmap, config.cropZoom, config.maskShape)
         val renderer = SceneImageFilterRender()
-        renderer.setImage(renderBitmap)
+        renderer.setImage(finalBitmap)
         val canvasAspect = 720f / 1280f
         val imageAspect = bitmap.width.toFloat() / bitmap.height.toFloat()
         val heightPercent = (config.widthPercent * canvasAspect / imageAspect).coerceAtMost(100f)
