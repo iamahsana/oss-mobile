@@ -434,18 +434,28 @@ class SceneEditorActivity : Activity() {
         val radiusLabel = TextView(this).apply { text = "Sudut background: ${current.backgroundRadius.toInt()}"; setTextColor(Color.WHITE); setPadding(0, dp(6), 0, dp(2)) }
         panel.addView(radiusLabel)
         val radiusSeek = SeekBar(this).apply { max = 48; progress = current.backgroundRadius.toInt(); isEnabled = current.backgroundEnabled }
-        backgroundCheck.setOnCheckedChangeListener { _, checked ->
-            gradientCheck.isEnabled = checked
-            backgroundColorGroup.isEnabled = checked
-            for (i in 0 until backgroundColorGroup.childCount) backgroundColorGroup.getChildAt(i).isEnabled = checked
-            radiusSeek.isEnabled = checked
-        }
         radiusSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) { radiusLabel.text = "Sudut background: $progress" }
             override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
             override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
         })
         panel.addView(radiusSeek)
+        val opacityLabel = TextView(this).apply { text = "Transparansi background: ${current.backgroundOpacity}%"; setTextColor(Color.WHITE); setPadding(0, dp(6), 0, dp(2)) }
+        panel.addView(opacityLabel)
+        val opacitySeek = SeekBar(this).apply { max = 100; progress = current.backgroundOpacity; isEnabled = current.backgroundEnabled }
+        opacitySeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) { opacityLabel.text = "Transparansi background: $progress%" }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        backgroundCheck.setOnCheckedChangeListener { _, checked ->
+            gradientCheck.isEnabled = checked
+            backgroundColorGroup.isEnabled = checked
+            for (i in 0 until backgroundColorGroup.childCount) backgroundColorGroup.getChildAt(i).isEnabled = checked
+            radiusSeek.isEnabled = checked
+            opacitySeek.isEnabled = checked
+        }
+        panel.addView(opacitySeek)
         val colorLabel = TextView(this).apply {
             text = "Warna"
             setTextColor(Color.WHITE)
@@ -529,6 +539,7 @@ class SceneEditorActivity : Activity() {
                     backgroundColor = selectedBackgroundColor,
                     backgroundGradient = backgroundCheck.isChecked && gradientCheck.isChecked,
                     backgroundRadius = radiusSeek.progress.toFloat(),
+                    backgroundOpacity = opacitySeek.progress,
                     italic = italicCheck.isChecked,
                     fontFamily = fonts.firstOrNull { (label, _) -> (0 until fontGroup.childCount).any { i -> val child = fontGroup.getChildAt(i) as? RadioButton; child?.id == fontGroup.checkedRadioButtonId && child.text.toString() == label } }?.second ?: current.fontFamily
                 )
