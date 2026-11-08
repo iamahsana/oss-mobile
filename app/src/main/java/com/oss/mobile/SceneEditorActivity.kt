@@ -118,7 +118,17 @@ class SceneEditorActivity : Activity() {
         updateHistoryButtons()
 
         canvasSizeButton = makeButton(canvasButtonLabel(), 12) { showCanvasSizes() }
-        root.addView(canvasSizeButton,
+        val viewportControls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        viewportControls.addView(canvasSizeButton,
+            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(4) })
+        viewportControls.addView(makeButton("Reset tampilan", 11) {
+            editor.resetViewport()
+            statusView.text = "Tampilan canvas dikembalikan ke ukuran pas layar."
+        }, LinearLayout.LayoutParams(0, dp(42), 0.65f).apply { marginStart = dp(4) })
+        root.addView(viewportControls,
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)).apply {
                 bottomMargin = dp(6)
             })
