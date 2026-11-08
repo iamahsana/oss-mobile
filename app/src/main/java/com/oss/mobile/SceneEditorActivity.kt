@@ -256,7 +256,7 @@ class SceneEditorActivity : Activity() {
         if (requestCode != REQUEST_PICK_IMAGE || resultCode != RESULT_OK) return
         val uri = data?.data ?: return
         try {
-            val imported = SceneImageStorage.import(this, uri)
+            val imported = SceneImageStorage.importImage(this, uri)
             val nextZ = (document.layers.maxOfOrNull { it.zIndex } ?: -1) + 1
             val width = 0.46f
             val imageAspect = imported.width.toFloat() / imported.height.toFloat()
