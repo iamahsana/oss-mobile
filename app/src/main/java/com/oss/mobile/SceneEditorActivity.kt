@@ -314,7 +314,7 @@ class SceneEditorActivity : Activity() {
         val selected = editor.selectedLayer() ?: return noSelection()
         val nextZ = (document.layers.maxOfOrNull { it.zIndex } ?: -1) + 1
         val copy = selected.copy(
-            id = "layer_" + System.currentTimeMillis(),
+            id = "layer_" + java.util.UUID.randomUUID().toString().replace("-", ""),
             displayName = selected.displayName + " copy",
             zIndex = nextZ,
             transform = selected.transform.copy(
