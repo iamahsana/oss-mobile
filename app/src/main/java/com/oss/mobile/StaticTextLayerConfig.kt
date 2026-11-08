@@ -63,7 +63,7 @@ object TextLayerBitmapFactory {
             textAlign = Paint.Align.LEFT
         }
         val lines = mutableListOf<String>()
-        config.text.split('\\n').forEach { paragraph ->
+        config.text.split('\n').forEach { paragraph ->
             var line = ""
             paragraph.split(Regex("\\s+")).forEach { word ->
                 val candidate = if (line.isEmpty()) word else "$line $word"
