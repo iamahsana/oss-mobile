@@ -182,6 +182,16 @@ class SceneEditorActivity : Activity() {
             LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(5) })
         root.addView(layerActions)
 
+        val precisionRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        precisionRow.addView(makeButton("⌖ Posisi & ukuran presisi", 11) { editSelectedTransform() },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)).apply {
+                topMargin = dp(5)
+            })
+        root.addView(precisionRow)
+
         setContentView(root)
     }
 
@@ -745,6 +755,68 @@ class SceneEditorActivity : Activity() {
         editor.setScene(document, selected.id)
         streamService?.applySceneDocument(document)
         statusView.text = if (direction > 0) "Layer dinaikkan." else "Layer diturunkan."
+    }
+
+
+    private fun editSelectedTransform() {
+        val selected = editor.selectedLayer() ?: return noSelection()
+        val t = selected.transform
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+        }
+        fun field(label: String, value: Float): EditText {
+            val input = EditText(this).apply {
+                hint = label
+                setSingleLine(true)
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER or
+                    android.text.InputType.TYPE_NUMBER_FLAG_SIGNED or
+                    android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+                setText(String.format(java.util.Locale.US, "%.3f", value))
+            }
+            panel.addView(TextView(this).apply {
+                text = label
+                setTextColor(Color.WHITE)
+                setPadding(0, dp(5), 0, 0)
+            })
+            panel.addView(input)
+            return input
+        }
+        val x = field("X (0–1 = area canvas)", t.x)
+        val y = field("Y (0–1 = area canvas)", t.y)
+        val width = field("Lebar (0.001–2)", t.width)
+        val height = field("Tinggi (0.001–2)", t.height)
+        val rotation = field("Rotasi (derajat)", t.rotationDegrees)
+        val opacity = field("Opacity (0–1)", t.opacity)
+        AlertDialog.Builder(this)
+            .setTitle("Posisi & ukuran presisi")
+            .setView(panel)
+            .setPositiveButton("Terapkan") { _, _ ->
+                val values = listOf(x, y, width, height, rotation, opacity)
+                    .map { it.text.toString().trim().toFloatOrNull() }
+                if (values.any { it == null }) {
+                    Toast.makeText(this, "Semua nilai harus berupa angka.", Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                val v = values.filterNotNull()
+                val next = runCatching {
+                    SceneTransform(
+                        x = v[0], y = v[1], width = v[2], height = v[3],
+                        rotationDegrees = v[4], opacity = v[5]
+                    )
+                }.getOrElse {
+                    Toast.makeText(this, "Nilai di luar batas yang diizinkan.", Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                document = document.copy(layers = document.layers.map {
+                    if (it.id == selected.id) it.copy(transform = next) else it
+                })
+                editor.setScene(document, selected.id)
+                streamService?.applySceneDocument(document)
+                statusView.text = "Transform layer diterapkan."
+            }
+            .setNegativeButton("Batal", null)
+            .show()
     }
 
     private fun noSelection() {
