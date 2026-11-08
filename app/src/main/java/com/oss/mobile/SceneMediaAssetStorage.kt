@@ -101,5 +101,25 @@ object SceneMediaAssetStorage {
             .takeIf { it.isFile && it.length() in 1..SceneMediaAsset.MAX_BYTES }
     }
 
+
+    /**
+     * Deletes only unreferenced imported GIF/video assets. If scene metadata cannot be
+     * read, the caller must skip pruning rather than risk deleting a still-used asset.
+     */
+    fun pruneUnreferenced(context: Context, documents: Collection<SceneDocument>): Int {
+        val referenced = SceneMediaAssetReferences.collect(documents)
+        val directory = File(context.applicationContext.filesDir, "scene_media/assets")
+        val files = directory.listFiles { file -> file.isFile && file.name.endsWith(".asset") }
+            ?: return 0
+        var deleted = 0
+        files.forEach { file ->
+            val id = file.name.removeSuffix(".asset")
+            if (id.matches(Regex("[a-f0-9]{32}")) && id !in referenced && file.delete()) {
+                deleted++
+            }
+        }
+        return deleted
+    }
+
     fun delete(context: Context, id: String): Boolean = file(context, id)?.delete() ?: false
 }
