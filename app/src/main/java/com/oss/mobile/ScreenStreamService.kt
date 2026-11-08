@@ -81,7 +81,6 @@ class ScreenStreamService : Service(), ConnectChecker {
     private var pendingPreview: TextureView? = null
     private var overlayCompositor: OverlayCompositor? = null
     private var sceneRendererController: SceneRendererController? = null
-    @Volatile private var sceneUsesScreenLayer = false
     private var userRequestedStop = false
     private var lastReconnectAttemptAt = 0L
     private var lastDiagnosticBitrateAt = 0L
@@ -148,20 +147,6 @@ class ScreenStreamService : Service(), ConnectChecker {
     fun applySceneDocument(document: SceneDocument): Boolean {
         val controller = sceneRendererController ?: return false
         controller.apply(document)
-        val hasScreenLayer = document.layers.any {
-            it.moduleId == SceneScreenLayerConfig.MODULE_ID && it.visible
-        }
-        if (hasScreenLayer != sceneUsesScreenLayer) {
-            val current = stream
-            val activeProjection = projection
-            if (current != null && activeProjection != null) {
-                current.changeVideoSource(
-                    if (hasScreenLayer) NoVideoSource()
-                    else ScreenSource(applicationContext, activeProjection)
-                )
-                sceneUsesScreenLayer = hasScreenLayer
-            }
-        }
         return true
     }
 
@@ -319,8 +304,26 @@ class ScreenStreamService : Service(), ConnectChecker {
             // Encoder dimensions follow the saved scene output, not the editor viewport
             // or a hard-coded portrait assumption. Keep dimensions even and bounded.
             val savedSceneId = intent.getStringExtra(EXTRA_SCENE_ID)
-            val savedScene = savedSceneId?.let { id ->
+            var savedScene = savedSceneId?.let { id ->
                 runCatching { SceneDocumentRepository(this).load(id) }.getOrNull()
+            }
+            // Migrate older scenes: screen capture becomes an ordinary full-canvas
+            // source layer underneath every overlay instead of the encoder's base source.
+            if (savedScene?.layers?.none { it.moduleId == SceneScreenLayerConfig.MODULE_ID } != false) {
+                val base = savedScene ?: SceneDocument(
+                    id = savedSceneId ?: "studio_scene_0",
+                    name = "Scene"
+                )
+                val screenLayer = SceneLayer(
+                    id = "screen_" + java.util.UUID.randomUUID().toString().replace("-", ""),
+                    moduleId = SceneScreenLayerConfig.MODULE_ID,
+                    displayName = "Share Screen",
+                    zIndex = -1000,
+                    transform = SceneTransform(x = 0f, y = 0f, width = 1f, height = 1f),
+                    configuration = SceneScreenLayerConfig().toMap()
+                )
+                savedScene = base.copy(layers = base.layers + screenLayer)
+                runCatching { SceneDocumentRepository(this).save(savedScene!!) }
             }
             val sceneCanvas = savedScene?.canvas ?: SceneCanvas()
             val dimensionScale = minOf(
@@ -366,16 +369,10 @@ class ScreenStreamService : Service(), ConnectChecker {
             // Keep legacy full-screen capture for old scenes until the user adds that layer.
             // This preserves existing streams while the source-module path is adopted.
             output.getGlInterface().setCameraOrientation(0)
-            val hasScreenLayer = savedScene?.layers?.any {
-                it.moduleId == SceneScreenLayerConfig.MODULE_ID && it.visible
-            } == true
-            sceneUsesScreenLayer = hasScreenLayer
-            if (hasScreenLayer) {
-                output.changeVideoSource(NoVideoSource())
-                sendStatus("Share Screen aktif sebagai elemen scene.")
-            } else {
-                output.changeVideoSource(ScreenSource(applicationContext, projection!!))
-            }
+            // All new and migrated scenes use the same compositor path. Screen capture
+            // is a transformable source layer, never the encoder's implicit base canvas.
+            output.changeVideoSource(NoVideoSource())
+            sendStatus("Scene compositor aktif; Share Screen dirender sebagai layer.");
             pendingPreview?.let { view ->
                 startPreviewIfReady(view)
             }
