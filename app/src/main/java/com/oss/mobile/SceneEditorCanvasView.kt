@@ -67,6 +67,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     private val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val imageCache = SparseArray<Bitmap>()
     private val importedImageCache = linkedMapOf<String, Bitmap>()
+    private val textBitmapCache = linkedMapOf<Int, Bitmap>()
 
     private var document = SceneDocument(id = "editor", name = "Scene")
     private var selectedLayerId: String? = null
@@ -154,9 +155,14 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         canvas.save()
         canvas.rotate(layer.transform.rotationDegrees, cx, cy)
         val image = imageBitmap(layer)
+        val textImage = if (layer.moduleId == TextLayerConfig.MODULE_ID) textBitmap(layer) else null
         if (image != null && layer.moduleId == "oss.source.image.static") {
             imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
             canvas.drawBitmap(image, null, rect, imagePaint)
+            imagePaint.alpha = 255
+        } else if (textImage != null) {
+            imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
+            canvas.drawBitmap(textImage, null, rect, imagePaint)
             imagePaint.alpha = 255
         } else {
             layerPaint.color = if (selected) Color.argb(220, 39, 116, 151)
@@ -171,7 +177,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             android.text.TextUtils.ellipsize(label, android.text.TextPaint(labelPaint), maxTextWidth,
                 android.text.TextUtils.TruncateAt.END).toString()
         } else label
-        if (image == null && rect.width() > 28f * density && rect.height() > 20f * density) {
+        if (image == null && textImage == null && rect.width() > 28f * density && rect.height() > 20f * density) {
             canvas.drawText(display, cx, cy + labelPaint.textSize * 0.35f, labelPaint)
         }
         canvas.restore()
@@ -191,6 +197,24 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             drawable.draw(target)
             if (imageCache.size() >= 8) imageCache.removeAt(0)
             imageCache.put(resourceId, bitmap)
+            bitmap
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun textBitmap(layer: SceneLayer): Bitmap? {
+        val config = runCatching { TextLayerConfig.from(layer.configuration) }.getOrNull() ?: return null
+        val key = config.hashCode()
+        textBitmapCache[key]?.let { if (!it.isRecycled) return it }
+        return try {
+            val bitmap = TextLayerBitmapFactory.create(config)
+            if (textBitmapCache.size >= 4) {
+                val eldest = textBitmapCache.entries.first()
+                textBitmapCache.remove(eldest.key)
+                if (!eldest.value.isRecycled) eldest.value.recycle()
+            }
+            textBitmapCache[key] = bitmap
             bitmap
         } catch (_: Exception) {
             null

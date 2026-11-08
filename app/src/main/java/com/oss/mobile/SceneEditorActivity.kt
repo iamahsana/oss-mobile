@@ -136,9 +136,11 @@ class SceneEditorActivity : Activity() {
             gravity = Gravity.CENTER
         }
         firstRow.addView(makeButton("＋ Galeri", 12) { openImagePicker() },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(5) })
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(4) })
+        firstRow.addView(makeButton("＋ Teks", 12) { addTextLayer() },
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(4); marginEnd = dp(4) })
         firstRow.addView(makeButton("Layers", 12) { showLayers() },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(5) })
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(4) })
         root.addView(firstRow)
 
         val secondRow = LinearLayout(this).apply {
@@ -237,6 +239,55 @@ class SceneEditorActivity : Activity() {
             statusView.text = "Canvas diubah, tetapi gagal menyimpan: ${error.message}"
         }
     }
+    private fun addTextLayer() {
+        val input = EditText(this).apply {
+            hint = "Tulis teks overlay"
+            minLines = 2
+            maxLines = 5
+            setText("Teks baru")
+        }
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(input)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Tambah teks")
+            .setView(container)
+            .setPositiveButton("Tambahkan") { _, _ ->
+                val value = input.text.toString().trim()
+                if (value.isBlank()) {
+                    Toast.makeText(this, "Teks tidak boleh kosong.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                runCatching {
+                    val config = TextLayerConfig(value, Color.WHITE, 128f)
+                    val nextZ = (document.layers.maxOfOrNull { it.zIndex } ?: -1) + 1
+                    val bitmap = TextLayerBitmapFactory.create(config)
+                    val aspect = bitmap.width.toFloat() / bitmap.height.toFloat()
+                    bitmap.recycle()
+                    val layerWidth = 0.76f
+                    val layerHeight = (layerWidth * document.canvas.width / document.canvas.height / aspect).coerceIn(0.03f, 1.5f)
+                    val layer = SceneLayer(
+                        id = "text_" + java.util.UUID.randomUUID().toString().replace("-", ""),
+                        moduleId = TextLayerConfig.MODULE_ID,
+                        displayName = value.take(24),
+                        zIndex = nextZ,
+                        transform = SceneTransform(x = 0.12f, y = 0.18f, width = layerWidth, height = layerHeight),
+                        configuration = config.toMap()
+                    )
+                    document = document.copy(layers = document.layers + layer)
+                    editor.setScene(document, layer.id)
+                    streamService?.applySceneDocument(document)
+                    statusView.text = "Teks ditambahkan. Geser, ubah ukuran, atau putar."
+                }.onFailure {
+                    Toast.makeText(this, "Gagal menambah teks: ${it.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton("Batal", null)
+            .show()
+    }
+
     private fun openImagePicker() {
         val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
