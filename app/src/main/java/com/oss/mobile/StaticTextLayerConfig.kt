@@ -54,24 +54,20 @@ data class StaticTextLayerConfig(
 /** Shared bounded bitmap generation for the editor and RootEncoder GL image filter. */
 object TextLayerBitmapFactory {
     fun create(config: StaticTextLayerConfig): Bitmap {
-        val width = 1200
+        val wrapWidth = 1200
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
             color = config.color
             textSize = config.textSize
             typeface = if (config.bold) Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                 else Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            textAlign = when (config.alignment) {
-                StaticTextLayerConfig.Alignment.LEFT -> Paint.Align.LEFT
-                StaticTextLayerConfig.Alignment.CENTER -> Paint.Align.CENTER
-                StaticTextLayerConfig.Alignment.RIGHT -> Paint.Align.RIGHT
-            }
+            textAlign = Paint.Align.LEFT
         }
         val lines = mutableListOf<String>()
-        config.text.split('\n').forEach { paragraph ->
+        config.text.split('\\n').forEach { paragraph ->
             var line = ""
-            paragraph.split(Regex("\\s+")).forEach { word ->
+            paragraph.split(Regex("\\\\s+")).forEach { word ->
                 val candidate = if (line.isEmpty()) word else "$line $word"
-                if (line.isNotEmpty() && paint.measureText(candidate) > width - 48f) {
+                if (line.isNotEmpty() && paint.measureText(candidate) > wrapWidth - 48f) {
                     lines += line
                     line = word
                 } else line = candidate
@@ -79,16 +75,25 @@ object TextLayerBitmapFactory {
             lines += line
         }
         val lineHeight = (config.textSize * 1.28f).toInt().coerceAtLeast(24)
+        val contentWidth = lines.maxOfOrNull { paint.measureText(it) } ?: config.textSize
+        val width = (contentWidth + 32f).toInt().coerceIn(64, wrapWidth)
         val height = (lines.size * lineHeight + 32).coerceIn(64, 4096)
+        val alignedPaint = Paint(paint).apply {
+            textAlign = when (config.alignment) {
+                StaticTextLayerConfig.Alignment.LEFT -> Paint.Align.LEFT
+                StaticTextLayerConfig.Alignment.CENTER -> Paint.Align.CENTER
+                StaticTextLayerConfig.Alignment.RIGHT -> Paint.Align.RIGHT
+            }
+        }
+        val x = when (config.alignment) {
+            StaticTextLayerConfig.Alignment.LEFT -> 16f
+            StaticTextLayerConfig.Alignment.CENTER -> width / 2f
+            StaticTextLayerConfig.Alignment.RIGHT -> width - 16f
+        }
         return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { bitmap ->
             val canvas = Canvas(bitmap)
-            val x = when (config.alignment) {
-                StaticTextLayerConfig.Alignment.LEFT -> 16f
-                StaticTextLayerConfig.Alignment.CENTER -> width / 2f
-                StaticTextLayerConfig.Alignment.RIGHT -> width - 16f
-            }
             lines.take(120).forEachIndexed { index, line ->
-                canvas.drawText(line, x, 16f + config.textSize + index * lineHeight, paint)
+                canvas.drawText(line, x, 16f + config.textSize + index * lineHeight, alignedPaint)
             }
         }
     }
