@@ -81,6 +81,36 @@ class StaticImageLayerConfigTest {
     }
 
     @Test
+    fun parsesCropPositionAndBorderOptions() {
+        val config = StaticImageLayerConfig.from(
+            mapOf(
+                "resource_id" to "9",
+                "crop_offset_x" to "0.5",
+                "crop_offset_y" to "-0.25",
+                "border_width" to "0.04",
+                "border_color" to "#00E676"
+            )
+        )
+        assertEquals(0.5f, config.cropOffsetX)
+        assertEquals(-0.25f, config.cropOffsetY)
+        assertEquals(0.04f, config.borderWidth)
+        assertEquals("#00E676", config.borderColor)
+    }
+
+    @Test
+    fun rejectsInvalidCropPositionAndBorder() {
+        assertThrows(IllegalArgumentException::class.java) {
+            StaticImageLayerConfig(resourceId = 9, cropOffsetX = 1.5f)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            StaticImageLayerConfig(resourceId = 9, borderWidth = 0.1f)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            StaticImageLayerConfig(resourceId = 9, borderColor = "red")
+        }
+    }
+
+    @Test
     fun rejectsMissingResourceId() {
         assertThrows(IllegalArgumentException::class.java) {
             StaticImageLayerConfig.from(emptyMap())
