@@ -275,13 +275,18 @@ class SceneEditorActivity : Activity() {
 
     private fun addTextLayer(value: String) {
         val config = StaticTextLayerConfig(value)
+        val bitmap = TextLayerBitmapFactory.create(config)
+        val textWidth = 0.72f
+        val textHeight = (textWidth * document.canvas.width / bitmap.width *
+            bitmap.height / document.canvas.height).coerceIn(0.02f, 0.5f)
+        bitmap.recycle()
         val nextZ = (document.layers.maxOfOrNull { it.zIndex } ?: -1) + 1
         val layer = SceneLayer(
             id = "text_" + java.util.UUID.randomUUID().toString().replace("-", ""),
             moduleId = StaticTextLayerConfig.MODULE_ID,
             displayName = value.replace("\\n", " ").take(22).ifBlank { "Teks" },
             zIndex = nextZ,
-            transform = SceneTransform(x = 0.10f, y = 0.12f, width = 0.72f, height = 0.18f),
+            transform = SceneTransform(x = 0.10f, y = 0.12f, width = textWidth, height = textHeight),
             configuration = config.toMap()
         )
         document = document.copy(layers = document.layers + layer)
