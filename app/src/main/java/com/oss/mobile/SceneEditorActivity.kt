@@ -244,18 +244,15 @@ class SceneEditorActivity : Activity() {
                     addSeekProperty(items, "Zoom crop", ((config.cropZoom - 1f) * 100).toInt().coerceIn(0, 200), 200,
                         onStart = { checkpointHistory() },
                         onChange = { value -> updateSelectedLayer { layer ->
-                            layer.copy(configuration = StaticImageLayerConfig.from(layer.configuration)
-                                .copy(cropZoom = 1f + value / 100f).toMap())
+                            layer.copy(configuration = layer.configuration + (StaticImageLayerConfig.KEY_CROP_ZOOM to (1f + value / 100f).toString()))
                         } },
                         onFinish = { finishPropertyChange() }
                     )
                     addPropertyToggle(items, "Flip H", config.flipHorizontal) { checked ->
-                        updateSelectedLayer { layer -> layer.copy(configuration =
-                            StaticImageLayerConfig.from(layer.configuration).copy(flipHorizontal = checked).toMap()) }
+                        updateSelectedLayer { layer -> layer.copy(configuration = layer.configuration + (StaticImageLayerConfig.KEY_FLIP_HORIZONTAL to checked.toString())) }
                     }
                     addPropertyToggle(items, "Flip V", config.flipVertical) { checked ->
-                        updateSelectedLayer { layer -> layer.copy(configuration =
-                            StaticImageLayerConfig.from(layer.configuration).copy(flipVertical = checked).toMap()) }
+                        updateSelectedLayer { layer -> layer.copy(configuration = layer.configuration + (StaticImageLayerConfig.KEY_FLIP_VERTICAL to checked.toString())) }
                     }
                     item("Detail gambar") { editSelectedImage() }
                 }
