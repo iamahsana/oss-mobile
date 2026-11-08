@@ -47,7 +47,7 @@ class SceneHistoryTest {
         history.record(scene("1"))
         history.record(scene("2"))
         history.record(scene("3"))
-        assertTrue(history.canUndo())
+        assertTrue(history.canUndo(scene("3")))
         assertEquals(scene("2"), history.undo(scene("3")))
         assertEquals(scene("1"), history.undo(scene("2")))
         assertNull(history.undo(scene("1")))
