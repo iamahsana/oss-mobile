@@ -295,7 +295,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                 }
                 val radius = 18f * density
                 gesture = when {
-                    event.pointerCount > 1 -> Gesture.PINCH
+                    event.pointerCount > 1 -> Gesture.NONE
                     selected != null && !selected.locked &&
                         distance(event.x, event.y, points!!.first.first, points.first.second) <= radius ->
                         Gesture.RESIZE
