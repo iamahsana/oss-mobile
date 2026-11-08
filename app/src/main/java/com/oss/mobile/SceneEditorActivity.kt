@@ -756,13 +756,20 @@ class SceneEditorActivity : Activity() {
             Toast.makeText(this, "Pilih layer gambar terlebih dahulu.", Toast.LENGTH_SHORT).show()
             return
         }
+        val currentConfig = runCatching {
+            StaticImageLayerConfig.from(selected.configuration)
+        }.getOrNull()
+        if (currentConfig == null) {
+            Toast.makeText(this, "Konfigurasi gambar tidak valid.", Toast.LENGTH_SHORT).show()
+            return
+        }
         val flipHorizontal = CheckBox(this).apply {
             text = "Balik horizontal"
-            isChecked = selected.configuration[StaticImageLayerConfig.KEY_FLIP_HORIZONTAL] == "true"
+            isChecked = currentConfig.flipHorizontal
         }
         val flipVertical = CheckBox(this).apply {
             text = "Balik vertikal"
-            isChecked = selected.configuration[StaticImageLayerConfig.KEY_FLIP_VERTICAL] == "true"
+            isChecked = currentConfig.flipVertical
         }
         val opacityLabel = TextView(this).apply {
             text = "Opacity gambar: " + (selected.transform.opacity * 100).toInt() + "%"
@@ -780,6 +787,52 @@ class SceneEditorActivity : Activity() {
                 override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
             })
         }
+        val cropLabel = TextView(this).apply {
+            text = "Zoom / crop: " + (currentConfig.cropZoom * 100).toInt() + "%"
+            setTextColor(Color.WHITE)
+            textSize = 14f
+        }
+        val cropZoom = SeekBar(this).apply {
+            max = 200
+            progress = ((currentConfig.cropZoom - 1f) * 100).toInt()
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    cropLabel.text = "Zoom / crop: " + (100 + progress) + "%"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        val maskLabel = TextView(this).apply {
+            text = "Bentuk mask"
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            setPadding(0, dp(8), 0, 0)
+        }
+        val masks = RadioGroup(this).apply {
+            orientation = RadioGroup.VERTICAL
+        }
+        val maskOptions = listOf(
+            "Persegi" to StaticImageLayerConfig.MASK_RECTANGLE,
+            "Lingkaran / oval" to StaticImageLayerConfig.MASK_CIRCLE,
+            "Sudut membulat" to StaticImageLayerConfig.MASK_ROUNDED
+        )
+        var selectedMask = currentConfig.maskShape
+        maskOptions.forEachIndexed { index, option ->
+            val radio = RadioButton(this).apply {
+                id = View.generateViewId()
+                text = option.first
+                isChecked = option.second == currentConfig.maskShape
+                setTextColor(Color.WHITE)
+            }
+            if (radio.isChecked) masks.check(radio.id)
+            masks.addView(radio)
+            radio.tag = option.second
+        }
+        masks.setOnCheckedChangeListener { group, checkedId ->
+            selectedMask = group.findViewById<RadioButton>(checkedId)?.tag as? String
+                ?: StaticImageLayerConfig.MASK_RECTANGLE
+        }
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(8), dp(20), 0)
@@ -787,6 +840,10 @@ class SceneEditorActivity : Activity() {
             addView(flipVertical)
             addView(opacityLabel)
             addView(opacity)
+            addView(cropLabel)
+            addView(cropZoom)
+            addView(maskLabel)
+            addView(masks)
         }
         AlertDialog.Builder(this)
             .setTitle("Edit gambar")
@@ -796,6 +853,8 @@ class SceneEditorActivity : Activity() {
                 val config = selected.configuration.toMutableMap().apply {
                     put(StaticImageLayerConfig.KEY_FLIP_HORIZONTAL, flipHorizontal.isChecked.toString())
                     put(StaticImageLayerConfig.KEY_FLIP_VERTICAL, flipVertical.isChecked.toString())
+                    put(StaticImageLayerConfig.KEY_CROP_ZOOM, (1f + cropZoom.progress / 100f).toString())
+                    put(StaticImageLayerConfig.KEY_MASK_SHAPE, selectedMask)
                 }
                 document = document.copy(layers = document.layers.map {
                     if (it.id == selected.id) it.copy(
@@ -805,7 +864,7 @@ class SceneEditorActivity : Activity() {
                 })
                 editor.setScene(document, selected.id)
                 streamService?.applySceneDocument(document)
-                statusView.text = "Pengaturan gambar diterapkan."
+                statusView.text = "Crop dan mask gambar diterapkan."
             }
             .setNegativeButton("Batal", null)
             .show()
