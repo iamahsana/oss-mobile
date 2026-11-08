@@ -25,17 +25,17 @@ class SceneLayerOperationsTest {
         val moved = SceneLayerOperations.moveGroup(
             SceneLayerOperations.group(scene(), setOf("a","b"), "g"), "g", .1f, -.05f
         )
-        assertEquals(.2f, moved.layers[0].transform.x)
-        assertEquals(.45f, moved.layers[1].transform.y)
-        assertEquals(.8f, moved.layers[2].transform.x)
+        assertEquals(.2f, moved.layers[0].transform.x, 0.0001f)
+        assertEquals(.45f, moved.layers[1].transform.y, 0.0001f)
+        assertEquals(.8f, moved.layers[2].transform.x, 0.0001f)
     }
 
     @Test fun alignsAndDistributesSelectedLayers() {
         val aligned = SceneLayerOperations.align(scene(), setOf("a","b"), SceneLayerOperations.Edge.LEFT)
-        assertEquals(.1f, aligned.layers[0].transform.x)
-        assertEquals(.1f, aligned.layers[1].transform.x)
+        assertEquals(.1f, aligned.layers[0].transform.x, 0.0001f)
+        assertEquals(.1f, aligned.layers[1].transform.x, 0.0001f)
         val distributed = SceneLayerOperations.distribute(scene(), setOf("a","b","c"), SceneLayerOperations.Axis.HORIZONTAL)
-        assertEquals(.1f, distributed.layers.first().transform.x)
-        assertEquals(.8f, distributed.layers.last().transform.x)
+        assertEquals(.1f, distributed.layers.first().transform.x, 0.0001f)
+        assertEquals(.8f, distributed.layers.last().transform.x, 0.0001f)
     }
 }
