@@ -11,6 +11,9 @@ import android.graphics.SurfaceTexture
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import com.pedro.encoder.input.gl.render.filters.`object`.SurfaceFilterRender
+import com.oss.mobile.diagnostics.DiagnosticCategory
+import com.oss.mobile.diagnostics.DiagnosticSeverity
+import com.oss.mobile.diagnostics.OssDiagnostics
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
