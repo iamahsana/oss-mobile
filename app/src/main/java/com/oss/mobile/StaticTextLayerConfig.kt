@@ -20,14 +20,19 @@ data class StaticTextLayerConfig(
     val backgroundEnabled: Boolean = false,
     val backgroundColor: Int = Color.argb(210, 15, 25, 35),
     val backgroundGradient: Boolean = false,
-    val backgroundGradientEndColor: Int = Color.rgb(40, 170, 210)
+    val backgroundGradientEndColor: Int = Color.rgb(40, 170, 210),
+    val backgroundRadius: Float = 18f,
+    val italic: Boolean = false,
+    val fontFamily: FontFamily = FontFamily.SANS
 ) {
     enum class Alignment { LEFT, CENTER, RIGHT }
+    enum class FontFamily { SANS, SERIF, MONOSPACE }
 
     init {
         require(text.isNotBlank() && text.length <= 500) { "Text must contain 1–500 characters" }
         require(textSize.isFinite() && textSize in 16f..256f) { "Text size must be 16–256" }
         require(outlineWidth.isFinite() && outlineWidth in 0f..12f) { "Outline width must be 0–12" }
+        require(backgroundRadius.isFinite() && backgroundRadius in 0f..48f) { "Background radius must be 0–48" }
     }
 
     fun toMap(): Map<String, String> = mapOf(
@@ -41,7 +46,10 @@ data class StaticTextLayerConfig(
         KEY_BACKGROUND_ENABLED to backgroundEnabled.toString(),
         KEY_BACKGROUND_COLOR to String.format("#%08X", backgroundColor),
         KEY_BACKGROUND_GRADIENT to backgroundGradient.toString(),
-        KEY_BACKGROUND_GRADIENT_END to String.format("#%08X", backgroundGradientEndColor)
+        KEY_BACKGROUND_GRADIENT_END to String.format("#%08X", backgroundGradientEndColor),
+        KEY_BACKGROUND_RADIUS to backgroundRadius.toString(),
+        KEY_ITALIC to italic.toString(),
+        KEY_FONT_FAMILY to fontFamily.name
     )
 
     companion object {
@@ -57,6 +65,9 @@ data class StaticTextLayerConfig(
         const val KEY_BACKGROUND_COLOR = "background_color"
         const val KEY_BACKGROUND_GRADIENT = "background_gradient"
         const val KEY_BACKGROUND_GRADIENT_END = "background_gradient_end"
+        const val KEY_BACKGROUND_RADIUS = "background_radius"
+        const val KEY_ITALIC = "italic"
+        const val KEY_FONT_FAMILY = "font_family"
 
         fun from(values: Map<String, String>): StaticTextLayerConfig {
             val text = values[KEY_TEXT] ?: "Teks"
@@ -73,7 +84,10 @@ data class StaticTextLayerConfig(
             val backgroundColor = runCatching { Color.parseColor(values[KEY_BACKGROUND_COLOR] ?: "#D20F1923") }.getOrDefault(Color.argb(210, 15, 25, 35))
             val backgroundGradient = values[KEY_BACKGROUND_GRADIENT]?.toBooleanStrictOrNull() ?: false
             val backgroundGradientEnd = runCatching { Color.parseColor(values[KEY_BACKGROUND_GRADIENT_END] ?: "#FF28AAD2") }.getOrDefault(Color.rgb(40, 170, 210))
-            return StaticTextLayerConfig(text, color, size, bold, alignment, outlineWidth, shadow, backgroundEnabled, backgroundColor, backgroundGradient, backgroundGradientEnd)
+            val backgroundRadius = values[KEY_BACKGROUND_RADIUS]?.toFloatOrNull()?.coerceIn(0f, 48f) ?: 18f
+            val italic = values[KEY_ITALIC]?.toBooleanStrictOrNull() ?: false
+            val fontFamily = runCatching { FontFamily.valueOf(values[KEY_FONT_FAMILY] ?: "SANS") }.getOrDefault(FontFamily.SANS)
+            return StaticTextLayerConfig(text, color, size, bold, alignment, outlineWidth, shadow, backgroundEnabled, backgroundColor, backgroundGradient, backgroundGradientEnd, backgroundRadius, italic, fontFamily)
         }
     }
 }
@@ -85,8 +99,14 @@ object TextLayerBitmapFactory {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
             color = config.color
             textSize = config.textSize
-            typeface = if (config.bold) Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                else Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            val style = (if (config.bold) Typeface.BOLD else Typeface.NORMAL) or
+                (if (config.italic) Typeface.ITALIC else Typeface.NORMAL)
+            val family = when (config.fontFamily) {
+                StaticTextLayerConfig.FontFamily.SANS -> Typeface.SANS_SERIF
+                StaticTextLayerConfig.FontFamily.SERIF -> Typeface.SERIF
+                StaticTextLayerConfig.FontFamily.MONOSPACE -> Typeface.MONOSPACE
+            }
+            typeface = Typeface.create(family, style)
             textAlign = Paint.Align.LEFT
         }
         val lines = mutableListOf<String>()
@@ -130,7 +150,7 @@ object TextLayerBitmapFactory {
                             config.backgroundColor, config.backgroundGradientEndColor, Shader.TileMode.CLAMP)
                     }
                 }
-                canvas.drawRoundRect(1f, 1f, width - 1f, height - 1f, 18f, 18f, backgroundPaint)
+                canvas.drawRoundRect(1f, 1f, width - 1f, height - 1f, config.backgroundRadius, config.backgroundRadius, backgroundPaint)
             }
             lines.take(120).forEachIndexed { index, line ->
                 val baseline = padding + config.textSize + index * lineHeight
