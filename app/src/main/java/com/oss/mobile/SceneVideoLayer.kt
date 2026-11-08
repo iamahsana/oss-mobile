@@ -29,10 +29,15 @@ data class SceneVideoLayerConfig(val assetId: String) {
  * MediaPlayer decodes the selected clip into RootEncoder's SurfaceFilterRender texture.
  * Playback setup is main-thread-bound; texture sampling and transform changes remain GL-thread-bound.
  */
-class SceneVideoFilterRender(
+class SceneVideoFilterRender private constructor(
     private val appContext: Context,
-    private val videoFile: File
-) : SurfaceFilterRender({ texture -> Unit }), SceneTransformTarget {
+    private val videoFile: File,
+    private val surfaceReady: AtomicReference<((SurfaceTexture) -> Unit)?>
+) : SurfaceFilterRender({ texture -> surfaceReady.get()?.invoke(texture) }), SceneTransformTarget {
+
+    constructor(context: Context, file: File) : this(
+        context.applicationContext, file, AtomicReference(null)
+    )
     private val pendingTransform = AtomicReference<RootEncoderSpriteTransform?>(null)
     private var appliedTransform: RootEncoderSpriteTransform? = null
     private val released = AtomicBoolean(false)
@@ -53,9 +58,7 @@ class SceneVideoFilterRender(
     }
 
     init {
-        // SurfaceFilterRender posts this callback on the main thread after creating its GL texture.
-        // Install a callback through the inherited texture callback by observing the texture lifecycle
-        // in initVideoPlayback(), which is invoked once a surface is available.
+        surfaceReady.set(::initVideoPlayback)
     }
 
     private fun initVideoPlayback(texture: SurfaceTexture) {
