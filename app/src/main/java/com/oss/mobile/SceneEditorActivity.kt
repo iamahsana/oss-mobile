@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.ComponentName
 import android.content.Context
+import android.content.res.Configuration
 import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.Color
@@ -1623,6 +1624,24 @@ class SceneEditorActivity : Activity() {
         }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (::editor.isInitialized) {
+            editor.requestLayout()
+            editor.invalidate()
+        }
+        if (::dockContainer.isInitialized && dockContainer.height > 0) renderBottomDock()
+    }
+
+    override fun onPause() {
+        // Persist the latest in-memory scene when the app is backgrounded or interrupted.
+        if (::repository.isInitialized && ::document.isInitialized) {
+            runCatching { repository.save(document) }
+                .onFailure { if (::statusView.isInitialized) statusView.text = "Autosave gagal: ${it.message}" }
+        }
+        super.onPause()
+    }
 
     override fun onDestroy() {
         if (serviceBound) {
