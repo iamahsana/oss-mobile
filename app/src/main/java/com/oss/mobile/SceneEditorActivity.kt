@@ -1627,9 +1627,7 @@ class SceneEditorActivity : Activity() {
         )
         checkpointHistory()
         document = document.copy(layers = document.layers + copy)
-        editor.setScene(document, copy.id)
-        streamService?.applySceneDocument(document)
-        statusView.text = copy.displayName + " dibuat."
+        publishSceneEdit(copy.id, copy.displayName + " dibuat.")
     }
 
     /** direction=1 moves toward the front; direction=-1 moves toward the back. */
