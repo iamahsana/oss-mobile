@@ -324,7 +324,7 @@ class ScreenStreamService : Service(), ConnectChecker {
             overlayCompositor = OverlayCompositor(output.getGlInterface())
             sceneRendererController = SceneRendererController(
                 this,
-                listOf(StaticImageOverlayModule(), StaticTextOverlayModule(), ShapeOverlayModule(), EmojiStickerOverlayModule(), SceneGifOverlayModule()),
+                listOf(StaticImageOverlayModule(), StaticTextOverlayModule(), ShapeOverlayModule(), EmojiStickerOverlayModule(), SceneGifOverlayModule(), SceneVideoOverlayModule()),
                 overlayCompositor!!
             )
             val savedSceneId = intent.getStringExtra(EXTRA_SCENE_ID)
