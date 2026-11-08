@@ -91,6 +91,8 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     private var startTransform: SceneTransform? = null
     private var startPointerAngle = 0f
     private var startRotation = 0f
+    private var multiStartTransforms: Map<String, SceneTransform> = emptyMap()
+    private var multiStartBounds: SceneTransform? = null
     private var moved = false
 
     var onDocumentChanged: ((SceneDocument) -> Unit)? = null
@@ -544,6 +546,14 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                 startTransform = selectedLayer()?.transform
                 startPointerAngle = handleLayer?.let { pointerAngle(it, event.x, event.y, scale) } ?: 0f
                 startRotation = if (multiSelectEnabled && selectedLayerIds.size > 1) 0f else selectedLayer()?.transform?.rotationDegrees ?: 0f
+                if (multiSelectEnabled && selectedLayerIds.size > 1) {
+                    multiStartTransforms = document.layers.filter { it.id in selectedLayerIds }
+                        .associate { it.id to it.transform }
+                    multiStartBounds = selectionHandleLayer()?.transform
+                } else {
+                    multiStartTransforms = emptyMap()
+                    multiStartBounds = null
+                }
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
@@ -553,7 +563,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                 if (distance(event.x, event.y, downX, downY) > 2f * density) moved = true
                 when (gesture) {
                     Gesture.DRAG -> updateDraggedLayer(dx, dy, scale)
-                    Gesture.RESIZE -> updateResizedLayer(dx, dy, scale)
+                    Gesture.RESIZE -> updateResizedLayer(if (multiSelectEnabled && selectedLayerIds.size > 1) event.x - downX else dx, if (multiSelectEnabled && selectedLayerIds.size > 1) event.y - downY else dy, scale)
                     Gesture.ROTATE -> updateRotatedLayer(event.x, event.y, scale)
                     else -> Unit
                 }
@@ -567,6 +577,8 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                 invalidate()
                 gesture = Gesture.NONE
                 startTransform = null
+                multiStartTransforms = emptyMap()
+                multiStartBounds = null
                 performClick()
                 return true
             }
@@ -654,14 +666,14 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     private fun updateResizedLayer(dx: Float, dy: Float, scale: Float) {
         val layer = selectedLayer() ?: return
         if (multiSelectEnabled && selectedLayerIds.size > 1) {
-            val bounds = selectionHandleLayer()?.transform ?: return
+            val bounds = multiStartBounds ?: selectionHandleLayer()?.transform ?: return
             val width = (bounds.width + dx / (scale * document.canvas.width)).coerceIn(0.03f, 2f)
             val height = (bounds.height + dy / (scale * document.canvas.height)).coerceIn(0.03f, 2f)
             val scaleX = width / bounds.width
             val scaleY = height / bounds.height
             document = document.copy(layers = document.layers.map { item ->
                 if (item.id in selectedLayerIds && !item.locked) {
-                    val t = item.transform
+                    val t = multiStartTransforms[item.id] ?: item.transform
                     item.copy(transform = t.copy(
                         x = bounds.x + (t.x - bounds.x) * scaleX,
                         y = bounds.y + (t.y - bounds.y) * scaleY,
@@ -688,18 +700,21 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     private fun updateRotatedLayer(x: Float, y: Float, scale: Float) {
         val layer = selectedLayer() ?: return
         val target = selectionHandleLayer() ?: layer
-        val currentAngle = pointerAngle(target, x, y, scale)
+        val rotationTarget = if (multiSelectEnabled && selectedLayerIds.size > 1) {
+            target.copy(transform = multiStartBounds ?: target.transform)
+        } else target
+        val currentAngle = pointerAngle(rotationTarget, x, y, scale)
         var delta = currentAngle - startPointerAngle
         while (delta > 180f) delta -= 360f
         while (delta < -180f) delta += 360f
         if (multiSelectEnabled && selectedLayerIds.size > 1) {
-            val bounds = target.transform
+            val bounds = multiStartBounds ?: target.transform
             val cx = bounds.x + bounds.width / 2f
             val cy = bounds.y + bounds.height / 2f
             val radians = Math.toRadians(delta.toDouble())
             document = document.copy(layers = document.layers.map { item ->
                 if (item.id in selectedLayerIds && !item.locked) {
-                    val t = item.transform
+                    val t = multiStartTransforms[item.id] ?: item.transform
                     val itemCx = t.x + t.width / 2f - cx
                     val itemCy = t.y + t.height / 2f - cy
                     val rotatedX = (itemCx * cos(radians) - itemCy * sin(radians)).toFloat() + cx
