@@ -64,6 +64,13 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         color = Color.rgb(88, 221, 255)
         strokeWidth = 1.5f * density
     }
+    private val guidePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(255, 190, 70)
+        strokeWidth = 1.2f * density
+        pathEffect = android.graphics.DashPathEffect(floatArrayOf(6f * density, 4f * density), 0f)
+    }
+    private var verticalGuide: Float? = null
+    private var horizontalGuide: Float? = null
     private val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val imageCache = SparseArray<Bitmap>()
     private val importedImageCache = linkedMapOf<String, Bitmap>()
@@ -121,6 +128,8 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         document.renderOrder().forEach { layer ->
             drawLayer(canvas, layer, left, top, scale, layer.id == selectedLayerId)
         }
+        verticalGuide?.let { x -> canvas.drawLine(x, outputRect.top, x, outputRect.bottom, guidePaint) }
+        horizontalGuide?.let { y -> canvas.drawLine(outputRect.left, y, outputRect.right, y, guidePaint) }
         canvas.restore()
 
         canvas.drawRoundRect(outputRect, 8f * density, 8f * density, layerStroke)
@@ -381,6 +390,9 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                 return true
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                verticalGuide = null
+                horizontalGuide = null
+                invalidate()
                 gesture = Gesture.NONE
                 startTransform = null
                 performClick()
@@ -393,11 +405,43 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     private fun updateDraggedLayer(dx: Float, dy: Float, scale: Float) {
         val layer = selectedLayer() ?: return
         val old = layer.transform
-        val next = old.copy(
-            x = (old.x + dx / (scale * document.canvas.width)).coerceIn(-1f, 2f),
-            y = (old.y + dy / (scale * document.canvas.height)).coerceIn(-1f, 2f)
+        var nextX = (old.x + dx / (scale * document.canvas.width)).coerceIn(-1f, 2f)
+        var nextY = (old.y + dy / (scale * document.canvas.height)).coerceIn(-1f, 2f)
+        val snapDistance = 9f * density / scale
+        val candidatesX = mutableListOf(
+            0f to 0f,
+            (0.5f - nextX - old.width / 2f) to 0.5f,
+            (1f - nextX - old.width) to 1f
         )
-        updateLayerTransform(layer.id, next)
+        val candidatesY = mutableListOf(
+            0f to 0f,
+            (0.5f - nextY - old.height / 2f) to 0.5f,
+            (1f - nextY - old.height) to 1f
+        )
+        document.layers.filter { it.id != layer.id && it.visible }.forEach { other ->
+            val t = other.transform
+            listOf(t.x, t.x + t.width / 2f, t.x + t.width).forEach { target ->
+                listOf(nextX, nextX + old.width / 2f, nextX + old.width).forEach { edge ->
+                    candidatesX += (target - edge) to target
+                }
+            }
+            listOf(t.y, t.y + t.height / 2f, t.y + t.height).forEach { target ->
+                listOf(nextY, nextY + old.height / 2f, nextY + old.height).forEach { edge ->
+                    candidatesY += (target - edge) to target
+                }
+            }
+        }
+        val snapX = candidatesX.minByOrNull { kotlin.math.abs(it.first) }
+        if (snapX != null && kotlin.math.abs(snapX.first) * document.canvas.width <= snapDistance) {
+            nextX = (nextX + snapX.first).coerceIn(-1f, 2f)
+            verticalGuide = canvasLeft(scale) + snapX.second * document.canvas.width * scale
+        } else verticalGuide = null
+        val snapY = candidatesY.minByOrNull { kotlin.math.abs(it.first) }
+        if (snapY != null && kotlin.math.abs(snapY.first) * document.canvas.height <= snapDistance) {
+            nextY = (nextY + snapY.first).coerceIn(-1f, 2f)
+            horizontalGuide = canvasTop(scale) + snapY.second * document.canvas.height * scale
+        } else horizontalGuide = null
+        updateLayerTransform(layer.id, old.copy(x = nextX, y = nextY))
     }
 
     private fun updateResizedLayer(dx: Float, dy: Float, scale: Float) {
