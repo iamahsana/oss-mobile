@@ -326,6 +326,7 @@ class SceneEditorActivity : Activity() {
             transform = SceneTransform(x = 0.10f, y = 0.12f, width = textWidth, height = textHeight),
             configuration = config.toMap()
         )
+        checkpointHistory()
         document = document.copy(layers = document.layers + layer)
         editor.setScene(document, layer.id)
         streamService?.applySceneDocument(document)
@@ -587,6 +588,7 @@ class SceneEditorActivity : Activity() {
                     transform = selected.transform.copy(height = height),
                     configuration = config.toMap()
                 )
+                checkpointHistory()
                 document = document.copy(layers = document.layers.map {
                     if (it.id == selected.id) updated else it
                 })
@@ -642,6 +644,7 @@ class SceneEditorActivity : Activity() {
                     "opacity" to "1"
                 )
             )
+            checkpointHistory()
             document = document.copy(layers = document.layers + layer)
             editor.setScene(document, layer.id)
             streamService?.applySceneDocument(document)
@@ -672,6 +675,7 @@ class SceneEditorActivity : Activity() {
                 "resource_id" to R.drawable.oss_test_overlay.toString()
             )
         )
+        checkpointHistory()
         document = document.copy(layers = document.layers + layer)
         editor.setScene(document, layer.id)
         streamService?.applySceneDocument(document)
@@ -704,6 +708,7 @@ class SceneEditorActivity : Activity() {
 
     private fun toggleVisibility() {
         val selected = editor.selectedLayer() ?: return noSelection()
+        checkpointHistory()
         document = document.copy(layers = document.layers.map {
             if (it.id == selected.id) it.copy(visible = !it.visible) else it
         })
@@ -713,6 +718,7 @@ class SceneEditorActivity : Activity() {
 
     private fun toggleLock() {
         val selected = editor.selectedLayer() ?: return noSelection()
+        checkpointHistory()
         document = document.copy(layers = document.layers.map {
             if (it.id == selected.id) it.copy(locked = !it.locked) else it
         })
@@ -723,6 +729,7 @@ class SceneEditorActivity : Activity() {
 
     private fun deleteSelected() {
         val selected = editor.selectedLayer() ?: return noSelection()
+        checkpointHistory()
         document = document.copy(layers = document.layers.filterNot { it.id == selected.id })
         editor.setScene(document, null)
         streamService?.applySceneDocument(document)
@@ -744,6 +751,7 @@ class SceneEditorActivity : Activity() {
             locked = false,
             configuration = selected.configuration.toMap()
         )
+        checkpointHistory()
         document = document.copy(layers = document.layers + copy)
         editor.setScene(document, copy.id)
         streamService?.applySceneDocument(document)
@@ -769,6 +777,7 @@ class SceneEditorActivity : Activity() {
         val normalized = ordered.mapIndexed { newIndex, layer ->
             layer.copy(zIndex = newIndex)
         }
+        checkpointHistory()
         document = document.copy(layers = normalized)
         editor.setScene(document, selected.id)
         streamService?.applySceneDocument(document)
@@ -826,6 +835,7 @@ class SceneEditorActivity : Activity() {
                     Toast.makeText(this, "Nilai di luar batas yang diizinkan.", Toast.LENGTH_LONG).show()
                     return@setPositiveButton
                 }
+                checkpointHistory()
                 document = document.copy(layers = document.layers.map {
                     if (it.id == selected.id) it.copy(transform = next) else it
                 })
