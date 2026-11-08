@@ -168,6 +168,8 @@ class SceneEditorActivity : Activity() {
             setPadding(dp(8), dp(6), dp(8), dp(5))
             elevation = dp(5).toFloat()
         }
+        // The properties workspace is the same bottom dock, never a floating dialog.
+        propertyPanel = dockContainer
         root.addView(dockContainer, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, dp(142)
         ))
@@ -1449,6 +1451,9 @@ class SceneEditorActivity : Activity() {
         val t = selected.transform
         propertyPanel.removeAllViews()
         propertyPanel.visibility = View.VISIBLE
+        propertyPanel.layoutParams = (propertyPanel.layoutParams as LinearLayout.LayoutParams).apply {
+            height = dp(214)
+        }
         propertyPanel.addView(TextView(this).apply {
             text = "POSISI & UKURAN  •  ${selected.displayName}"
             textSize = 12f
@@ -1498,8 +1503,9 @@ class SceneEditorActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END
         }
-        actions.addView(makeButton("Tutup", 11) {
-            propertyPanel.visibility = View.GONE
+        actions.addView(makeButton("Kembali", 11) {
+            propertyPanel.layoutParams = (propertyPanel.layoutParams as LinearLayout.LayoutParams).apply { height = dp(142) }
+            renderBottomDock()
         })
         actions.addView(makeButton("Terapkan", 11) {
             val values = (xy + wh + ro).map { it.text.toString().trim().toFloatOrNull() }
@@ -1525,7 +1531,8 @@ class SceneEditorActivity : Activity() {
             streamService?.applySceneDocument(document)
             runCatching { repository.save(document) }
             statusView.text = "Transform layer diterapkan."
-            propertyPanel.visibility = View.GONE
+            propertyPanel.layoutParams = (propertyPanel.layoutParams as LinearLayout.LayoutParams).apply { height = dp(142) }
+            renderBottomDock()
         })
         actions.getChildAt(1).let { it.layoutParams = (it.layoutParams as LinearLayout.LayoutParams).apply { marginStart = dp(6) } }
         propertyPanel.addView(actions)
