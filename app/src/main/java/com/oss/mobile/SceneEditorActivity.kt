@@ -381,6 +381,22 @@ class SceneEditorActivity : Activity() {
             isChecked = current.shadow
         }
         panel.addView(shadowCheck)
+        val backgroundCheck = CheckBox(this).apply {
+            text = "Background teks"
+            setTextColor(Color.WHITE)
+            isChecked = current.backgroundEnabled
+        }
+        panel.addView(backgroundCheck)
+        val gradientCheck = CheckBox(this).apply {
+            text = "Gradasi (warna gelap → cyan)"
+            setTextColor(Color.WHITE)
+            isChecked = current.backgroundGradient
+            isEnabled = current.backgroundEnabled
+        }
+        backgroundCheck.setOnCheckedChangeListener { _, checked ->
+            gradientCheck.isEnabled = checked
+        }
+        panel.addView(gradientCheck)
         val colorLabel = TextView(this).apply {
             text = "Warna"
             setTextColor(Color.WHITE)
@@ -459,7 +475,9 @@ class SceneEditorActivity : Activity() {
                     bold = boldCheck.isChecked,
                     alignment = alignment,
                     outlineWidth = if (outlineCheck.isChecked) outlineSeek.progress.toFloat().coerceAtLeast(1f) else 0f,
-                    shadow = shadowCheck.isChecked
+                    shadow = shadowCheck.isChecked,
+                    backgroundEnabled = backgroundCheck.isChecked,
+                    backgroundGradient = backgroundCheck.isChecked && gradientCheck.isChecked
                 )
                 val bitmap = TextLayerBitmapFactory.create(config)
                 val width = selected.transform.width
