@@ -167,6 +167,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         canvas.rotate(layer.transform.rotationDegrees, cx, cy)
         val image = imageBitmap(layer)
         val textBitmap = textBitmap(layer)
+        val shapeBitmap = shapeBitmap(layer)
         if (image != null && layer.moduleId == "oss.source.image.static") {
             val displayImage = processedImageBitmap(layer, image)
             imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
@@ -182,6 +183,10 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         } else if (textBitmap != null) {
             imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
             canvas.drawBitmap(textBitmap, null, rect, imagePaint)
+            imagePaint.alpha = 255
+        } else if (shapeBitmap != null) {
+            imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
+            canvas.drawBitmap(shapeBitmap, null, rect, imagePaint)
             imagePaint.alpha = 255
         } else {
             layerPaint.color = if (selected) Color.argb(220, 39, 116, 151)
@@ -267,6 +272,24 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         textBitmapCache[key]?.let { if (!it.isRecycled) return it }
         return try {
             val bitmap = TextLayerBitmapFactory.create(StaticTextLayerConfig.from(layer.configuration))
+            if (textBitmapCache.size >= 4) {
+                val eldest = textBitmapCache.entries.first()
+                textBitmapCache.remove(eldest.key)
+                if (!eldest.value.isRecycled) eldest.value.recycle()
+            }
+            textBitmapCache[key] = bitmap
+            bitmap
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun shapeBitmap(layer: SceneLayer): Bitmap? {
+        if (layer.moduleId != ShapeLayerConfig.MODULE_ID) return null
+        val key = layer.configuration.toSortedMap().toString()
+        textBitmapCache[key]?.let { if (!it.isRecycled) return it }
+        return try {
+            val bitmap = ShapeLayerBitmapFactory.create(ShapeLayerConfig.from(layer.configuration))
             if (textBitmapCache.size >= 4) {
                 val eldest = textBitmapCache.entries.first()
                 textBitmapCache.remove(eldest.key)
