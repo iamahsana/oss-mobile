@@ -565,12 +565,14 @@ class SceneEditorActivity : Activity() {
                     Toast.makeText(this, "Nama scene tidak boleh kosong.", Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
-                val renamed = scene.copy(name = name)
+                val renamed = (if (document.id == scene.id) document else scene).copy(name = name)
                 runCatching { repository.save(renamed) }
                     .onSuccess {
                         if (document.id == scene.id) {
                             document = renamed
                             titleView.text = renamed.name
+                            editor.setScene(document, editor.selectedLayer()?.id)
+                            streamService?.applySceneDocument(document)
                         }
                         statusView.text = "Nama scene diperbarui."
                     }
