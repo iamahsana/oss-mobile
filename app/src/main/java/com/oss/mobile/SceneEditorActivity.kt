@@ -347,6 +347,40 @@ class SceneEditorActivity : Activity() {
             isChecked = current.bold
         }
         panel.addView(boldCheck)
+        val outlineCheck = CheckBox(this).apply {
+            text = "Outline hitam"
+            setTextColor(Color.WHITE)
+            isChecked = current.outlineWidth > 0f
+        }
+        panel.addView(outlineCheck)
+        val outlineLabel = TextView(this).apply {
+            text = "Ketebalan outline: ${current.outlineWidth.toInt()}"
+            setTextColor(Color.WHITE)
+            setPadding(0, dp(2), 0, dp(2))
+        }
+        panel.addView(outlineLabel)
+        val outlineSeek = SeekBar(this).apply {
+            max = 12
+            progress = current.outlineWidth.toInt().coerceIn(0, 12)
+            isEnabled = outlineCheck.isChecked
+        }
+        outlineCheck.setOnCheckedChangeListener { _, checked ->
+            outlineSeek.isEnabled = checked
+        }
+        outlineSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                outlineLabel.text = "Ketebalan outline: $progress"
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        panel.addView(outlineSeek)
+        val shadowCheck = CheckBox(this).apply {
+            text = "Bayangan (shadow)"
+            setTextColor(Color.WHITE)
+            isChecked = current.shadow
+        }
+        panel.addView(shadowCheck)
         val colorLabel = TextView(this).apply {
             text = "Warna"
             setTextColor(Color.WHITE)
@@ -423,7 +457,9 @@ class SceneEditorActivity : Activity() {
                     color = selectedColor,
                     textSize = (sizeSeek.progress + 16).toFloat(),
                     bold = boldCheck.isChecked,
-                    alignment = alignment
+                    alignment = alignment,
+                    outlineWidth = if (outlineCheck.isChecked) outlineSeek.progress.toFloat().coerceAtLeast(1f) else 0f,
+                    shadow = shadowCheck.isChecked
                 )
                 val bitmap = TextLayerBitmapFactory.create(config)
                 val width = selected.transform.width
