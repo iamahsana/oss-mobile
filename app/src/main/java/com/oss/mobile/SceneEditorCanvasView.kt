@@ -144,7 +144,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        canvas.drawColor(Color.rgb(12, 20, 29))
+        canvas.drawColor(Color.rgb(238, 241, 246))
         if (width <= 0 || height <= 0) return
 
         val scale = sceneScale()
