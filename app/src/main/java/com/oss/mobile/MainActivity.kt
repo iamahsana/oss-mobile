@@ -36,20 +36,27 @@ import android.os.Looper
 import android.widget.TextView
 import android.widget.Toast
 import com.oss.mobile.audio.AudioDiagnostics
+import com.oss.mobile.diagnostics.DiagnosticReportExporter
+import com.oss.mobile.diagnostics.OssDiagnostics
+import java.io.File
 
 class MainActivity : Activity() {
     private val scenes = mutableListOf<String>()
+    private val sceneIds = mutableListOf<String>()
     private var selectedScene = 0
     private var selectedAudioMode = ScreenStreamService.AUDIO_MODE_MICROPHONE
     private lateinit var sceneList: LinearLayout
     private lateinit var previewLabel: TextView
     private lateinit var previewView: TextureView
+    private lateinit var testImageOverlay: CheckBox
     private var streamService: ScreenStreamService? = null
     private var serviceBound = false
     private val streamConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             streamService = (binder as? ScreenStreamService.LocalBinder)?.getService()
             applyCapturedContentVisibility(streamService?.isCapturedContentVisible() == true)
+            metricsHandler.removeCallbacks(metricsRefreshTask)
+            metricsHandler.post(metricsRefreshTask)
         }
         override fun onServiceDisconnected(name: ComponentName?) {
             streamService = null
@@ -59,6 +66,29 @@ class MainActivity : Activity() {
     private lateinit var streamKey: EditText
     private lateinit var streamStatus: TextView
     private var statusReceiverRegistered = false
+    private var pendingDiagnosticArchive: File? = null
+    private lateinit var liveMetricsText: TextView
+    private val metricsHandler = Handler(Looper.getMainLooper())
+    private val metricsRefreshTask = object : Runnable {
+        override fun run() {
+            if (!::liveMetricsText.isInitialized) return
+            val metrics = streamService?.liveStreamMetrics()
+            liveMetricsText.text = if (metrics == null) {
+                "Menunggu koneksi streaming…"
+            } else {
+                val bitrate = metrics.bitrateBps.toLongOrNull()?.let { "%.2f Mbps".format(it / 1_000_000.0) } ?: "—"
+                buildString {
+                    append(if (metrics.connected) "● RTMP CONNECTED" else "○ RTMP NOT CONNECTED")
+                    append("\nFPS: ${metrics.fps}    Bitrate: $bitrate")
+                    append("\nVideo frames: ${metrics.sentVideoFrames} sent / ${metrics.droppedVideoFrames} dropped")
+                    append("\nAudio frames: ${metrics.sentAudioFrames} sent / ${metrics.droppedAudioFrames} dropped")
+                    append("\nCache: ${metrics.cacheSize}    Queue: ${metrics.queuedItems}")
+                    append("\nCongestion: ${if (metrics.congested) "YES" else "NO"}")
+                }
+            }
+            metricsHandler.postDelayed(this, 1000L)
+        }
+    }
 
     private val statusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -78,6 +108,7 @@ class MainActivity : Activity() {
     companion object {
         private const val REQUEST_SCREEN_CAPTURE = 4101
         private const val REQUEST_MICROPHONE = 4102
+        private const val REQUEST_EXPORT_DIAGNOSTICS = 4103
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -154,6 +185,7 @@ class MainActivity : Activity() {
             statusReceiverRegistered = true
         }
         bindStreamService()
+        metricsHandler.post(metricsRefreshTask)
     }
 
     private fun bindStreamService() {
@@ -182,6 +214,7 @@ class MainActivity : Activity() {
     }
 
     override fun onStop() {
+        metricsHandler.removeCallbacks(metricsRefreshTask)
         if (serviceBound) {
             streamService?.detachPreview(previewView)
             unbindService(streamConnection)
@@ -316,7 +349,31 @@ class MainActivity : Activity() {
             }
         }
         previewCard.addView(previewContainer)
+        testImageOverlay = CheckBox(this).apply {
+            text = "Temporary static image overlay test"
+            textSize = 12f
+            setTextColor(0xFFDCE8F0.toInt())
+            buttonTintList = android.content.res.ColorStateList.valueOf(0xFF61D9F4.toInt())
+            isChecked = false
+            setOnCheckedChangeListener { _, checked ->
+                if (streamService != null) {
+                    val updateIntent = Intent(this@MainActivity, ScreenStreamService::class.java).apply {
+                        action = ScreenStreamService.ACTION_SET_TEST_IMAGE_OVERLAY
+                        putExtra(ScreenStreamService.EXTRA_TEST_IMAGE_OVERLAY, checked)
+                    }
+                    startService(updateIntent)
+                }
+            }
+        }
+        previewCard.addView(testImageOverlay)
         page.addView(previewCard)
+
+        val metricsCard = makeCard()
+        metricsCard.addView(makeText("LIVE STREAM HEALTH", 11f, 0xFF9FB2C1.toInt(), true))
+        liveMetricsText = makeText("Menunggu koneksi streaming…", 12f, 0xFFEAF2F8.toInt())
+        liveMetricsText.setPadding(0, dp(10), 0, 0)
+        metricsCard.addView(liveMetricsText)
+        page.addView(metricsCard)
 
         val sceneCard = makeCard()
         val sceneHeader = LinearLayout(this).apply {
@@ -336,6 +393,7 @@ class MainActivity : Activity() {
             setPadding(dp(12), 0, dp(12), 0)
             setOnClickListener {
                 scenes.add("Scene " + (scenes.size + 1))
+                sceneIds.add("scn_" + java.util.UUID.randomUUID().toString().replace("-", ""))
                 selectedScene = scenes.lastIndex
                 saveScenes()
                 refreshScenes()
@@ -348,6 +406,23 @@ class MainActivity : Activity() {
             setPadding(0, dp(8), 0, 0)
         }
         sceneCard.addView(sceneList)
+        val editScene = Button(this).apply {
+            text = "Edit selected scene"
+            isAllCaps = false
+            textSize = 13f
+            setTextColor(0xFF07131B.toInt())
+            background = roundedBackground(0xFF61D9F4.toInt(), 12)
+            setOnClickListener {
+                val editorIntent = Intent(this@MainActivity, SceneEditorActivity::class.java).apply {
+                    putExtra(SceneEditorActivity.EXTRA_SCENE_ID, sceneIds.getOrElse(selectedScene) { "scn_default" })
+                    putExtra(SceneEditorActivity.EXTRA_SCENE_NAME, scenes.getOrElse(selectedScene) { "Scene" })
+                }
+                startActivity(editorIntent)
+            }
+        }
+        sceneCard.addView(editScene, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(48)
+        ).apply { topMargin = dp(8) })
         page.addView(sceneCard)
 
         val audioCard = makeCard()
@@ -407,6 +482,30 @@ class MainActivity : Activity() {
             }
         }
         audioCard.addView(diagnosticsButton)
+
+        val exportDiagnosticsButton = Button(this).apply {
+            text = "Export full diagnostic report"
+            isAllCaps = false
+            textSize = 13f
+            setTextColor(0xFF07131B.toInt())
+            background = roundedBackground(0xFF61D9F4.toInt(), 12)
+            setOnClickListener {
+                try {
+                    pendingDiagnosticArchive = DiagnosticReportExporter(this@MainActivity).createArchive()
+                    val saveIntent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "application/zip"
+                        putExtra(Intent.EXTRA_TITLE, pendingDiagnosticArchive?.name ?: "OSS-Diagnostic.zip")
+                    }
+                    startActivityForResult(saveIntent, REQUEST_EXPORT_DIAGNOSTICS)
+                } catch (error: Exception) {
+                    Toast.makeText(this@MainActivity, "Gagal membuat laporan: ${error.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        audioCard.addView(exportDiagnosticsButton, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(48)
+        ).apply { topMargin = dp(8) })
 
         val mixerButton = Button(this).apply {
             text = "Digital Audio Mixer"
@@ -710,6 +809,25 @@ class MainActivity : Activity() {
     @Deprecated("Uses the platform screen-capture consent result")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_EXPORT_DIAGNOSTICS) {
+            val archive = pendingDiagnosticArchive
+            pendingDiagnosticArchive = null
+            if (resultCode == RESULT_OK && data?.data != null && archive != null) {
+                try {
+                    contentResolver.openOutputStream(data.data!!)?.use { output ->
+                        archive.inputStream().use { input -> input.copyTo(output) }
+                    } ?: throw IllegalStateException("Tidak bisa membuka lokasi penyimpanan")
+                    Toast.makeText(this, "Diagnostic report berhasil disimpan.", Toast.LENGTH_LONG).show()
+                } catch (error: Exception) {
+                    Toast.makeText(this, "Gagal menyimpan laporan: ${error.message}", Toast.LENGTH_LONG).show()
+                } finally {
+                    archive.delete()
+                }
+            } else {
+                archive?.delete()
+            }
+            return
+        }
         if (requestCode != REQUEST_SCREEN_CAPTURE) return
         if (resultCode != RESULT_OK || data == null) {
             streamStatus.text = "Izin screen capture dibatalkan."
@@ -722,6 +840,8 @@ class MainActivity : Activity() {
             putExtra(ScreenStreamService.EXTRA_RESULT_DATA, data)
             putExtra(ScreenStreamService.EXTRA_ENDPOINT, endpoint)
             putExtra(ScreenStreamService.EXTRA_AUDIO_MODE, selectedAudioMode)
+            putExtra(ScreenStreamService.EXTRA_TEST_IMAGE_OVERLAY, testImageOverlay.isChecked)
+            putExtra(ScreenStreamService.EXTRA_SCENE_ID, sceneIds.getOrElse(selectedScene) { "scn_default" })
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent)
@@ -742,12 +862,25 @@ class MainActivity : Activity() {
             scenes.addAll(saved.split("\n").map { it.trim() }.filter { it.isNotEmpty() })
         }
         if (scenes.isEmpty()) scenes.add("Scene 1")
+        sceneIds.clear()
+        val savedIds = prefs.getString("scene_ids", null)
+        if (!savedIds.isNullOrBlank()) {
+            sceneIds.addAll(savedIds.split("\n").filter { it.matches(Regex("scn_[A-Za-z0-9_-]{1,80}")) })
+        }
+        if (sceneIds.size != scenes.size) {
+            sceneIds.clear()
+            repeat(scenes.size) {
+                sceneIds.add("scn_" + java.util.UUID.randomUUID().toString().replace("-", ""))
+            }
+        }
         selectedScene = prefs.getInt("selected_scene", 0).coerceIn(0, scenes.lastIndex)
+        saveScenes()
     }
 
     private fun saveScenes() {
         getSharedPreferences("oss_studio", MODE_PRIVATE).edit()
             .putString("scene_names", scenes.joinToString("\n"))
+            .putString("scene_ids", sceneIds.joinToString("\n"))
             .putInt("selected_scene", selectedScene)
             .apply()
     }
@@ -793,6 +926,8 @@ class MainActivity : Activity() {
                             .setNegativeButton("Cancel", null)
                             .setPositiveButton("Delete") { _, _ ->
                                 scenes.removeAt(index)
+                                val removedSceneId = sceneIds.removeAt(index)
+                                runCatching { SceneDocumentRepository(this@MainActivity).delete(removedSceneId) }
                                 selectedScene = when {
                                     selectedScene > index -> selectedScene - 1
                                     selectedScene == index -> (index - 1).coerceAtLeast(0)
@@ -827,7 +962,7 @@ class MainActivity : Activity() {
             sceneList.addView(button)
         }
         if (scenes.isNotEmpty()) {
-            previewLabel.text = "Scene dipilih: ${scenes[selectedScene]} — pengaturan scene tersimpan; compositor visual menyusul."
+            previewLabel.text = "Scene dipilih: ${scenes[selectedScene]} — siap diedit."
         }
     }
 }
