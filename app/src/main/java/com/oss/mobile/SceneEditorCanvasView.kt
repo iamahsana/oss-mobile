@@ -77,6 +77,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     private val textBitmapCache = linkedMapOf<String, Bitmap>()
     private val processedImageCache = linkedMapOf<String, Bitmap>()
     private val gifPreviewCache = linkedMapOf<String, Bitmap>()
+    private val videoPreviewCache = linkedMapOf<String, Bitmap>()
 
     private var document = SceneDocument(id = "editor", name = "Scene")
     private var selectedLayerId: String? = null
@@ -171,6 +172,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         val shapeBitmap = shapeBitmap(layer)
         val stickerBitmap = stickerBitmap(layer)
         val gifBitmap = gifBitmap(layer)
+        val videoBitmap = videoBitmap(layer)
         if (image != null && layer.moduleId == "oss.source.image.static") {
             val displayImage = processedImageBitmap(layer, image)
             imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
@@ -199,6 +201,10 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
             canvas.drawBitmap(gifBitmap, null, rect, imagePaint)
             imagePaint.alpha = 255
+        } else if (videoBitmap != null) {
+            imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
+            canvas.drawBitmap(videoBitmap, null, rect, imagePaint)
+            imagePaint.alpha = 255
         } else {
             layerPaint.color = if (selected) Color.argb(220, 39, 116, 151)
                 else Color.argb(175, 48, 82, 103)
@@ -212,7 +218,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             android.text.TextUtils.ellipsize(label, android.text.TextPaint(labelPaint), maxTextWidth,
                 android.text.TextUtils.TruncateAt.END).toString()
         } else label
-        if (image == null && textBitmap == null && shapeBitmap == null && stickerBitmap == null && gifBitmap == null &&
+        if (image == null && textBitmap == null && shapeBitmap == null && stickerBitmap == null && gifBitmap == null && videoBitmap == null &&
             rect.width() > 28f * density && rect.height() > 20f * density) {
             canvas.drawText(display, cx, cy + labelPaint.textSize * 0.35f, labelPaint)
         }
@@ -313,6 +319,38 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         }
     }
 
+
+
+    private fun videoBitmap(layer: SceneLayer): Bitmap? {
+        if (layer.moduleId != SceneVideoLayerConfig.MODULE_ID) return null
+        val assetId = layer.configuration[SceneVideoLayerConfig.KEY_ASSET_ID] ?: return null
+        videoPreviewCache[assetId]?.let { if (!it.isRecycled) return it }
+        return try {
+            val file = SceneMediaAssetStorage.file(context, assetId) ?: return null
+            val retriever = android.media.MediaMetadataRetriever()
+            val bitmap = try {
+                retriever.setDataSource(file.absolutePath)
+                retriever.getFrameAtTime(0L, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            } finally {
+                retriever.release()
+            } ?: return null
+            val scale = min(1f, 512f / max(bitmap.width, bitmap.height))
+            val preview = if (scale < 1f) Bitmap.createScaledBitmap(
+                bitmap, (bitmap.width * scale).toInt().coerceAtLeast(1),
+                (bitmap.height * scale).toInt().coerceAtLeast(1), true
+            ) else bitmap
+            if (preview !== bitmap) bitmap.recycle()
+            if (videoPreviewCache.size >= 3) {
+                val eldest = videoPreviewCache.entries.first()
+                videoPreviewCache.remove(eldest.key)
+                if (!eldest.value.isRecycled) eldest.value.recycle()
+            }
+            videoPreviewCache[assetId] = preview
+            preview
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     private fun gifBitmap(layer: SceneLayer): Bitmap? {
         if (layer.moduleId != SceneGifLayerConfig.MODULE_ID) return null
