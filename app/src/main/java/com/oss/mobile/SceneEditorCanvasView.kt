@@ -75,6 +75,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     private val imageCache = SparseArray<Bitmap>()
     private val importedImageCache = linkedMapOf<String, Bitmap>()
     private val textBitmapCache = linkedMapOf<String, Bitmap>()
+    private val processedImageCache = linkedMapOf<String, Bitmap>()
 
     private var document = SceneDocument(id = "editor", name = "Scene")
     private var selectedLayerId: String? = null
@@ -167,6 +168,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         val image = imageBitmap(layer)
         val textBitmap = textBitmap(layer)
         if (image != null && layer.moduleId == "oss.source.image.static") {
+            val displayImage = processedImageBitmap(layer, image)
             imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
             val flipX = layer.configuration[StaticImageLayerConfig.KEY_FLIP_HORIZONTAL]?.toBooleanStrictOrNull() == true
             val flipY = layer.configuration[StaticImageLayerConfig.KEY_FLIP_VERTICAL]?.toBooleanStrictOrNull() == true
@@ -174,7 +176,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             if (flipX || flipY) {
                 canvas.scale(if (flipX) -1f else 1f, if (flipY) -1f else 1f, cx, cy)
             }
-            canvas.drawBitmap(image, null, rect, imagePaint)
+            canvas.drawBitmap(displayImage, null, rect, imagePaint)
             canvas.restore()
             imagePaint.alpha = 255
         } else if (textBitmap != null) {
@@ -199,6 +201,23 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             canvas.drawText(display, cx, cy + labelPaint.textSize * 0.35f, labelPaint)
         }
         canvas.restore()
+    }
+
+    private fun processedImageBitmap(layer: SceneLayer, source: Bitmap): Bitmap {
+        val config = runCatching { StaticImageLayerConfig.from(layer.configuration) }.getOrNull()
+            ?: return source
+        val key = layer.id + ":" + layer.configuration.toSortedMap().toString()
+        processedImageCache[key]?.let { if (!it.isRecycled) return it }
+        val processed = ImageLayerBitmapProcessor.process(source, config.cropZoom, config.maskShape)
+        if (processed !== source) {
+            if (processedImageCache.size >= 8) {
+                val eldest = processedImageCache.entries.first()
+                processedImageCache.remove(eldest.key)
+                if (!eldest.value.isRecycled) eldest.value.recycle()
+            }
+            processedImageCache[key] = processed
+        }
+        return processed
     }
 
     private fun imageBitmap(resourceId: Int): Bitmap? {
