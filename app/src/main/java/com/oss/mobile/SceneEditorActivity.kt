@@ -25,6 +25,7 @@ class SceneEditorActivity : Activity() {
         const val EXTRA_SCENE_ID = "scene_editor_id"
         const val EXTRA_SCENE_NAME = "scene_editor_name"
         private const val TEST_IMAGE_MODULE = "oss.source.image.static"
+        private const val REQUEST_PICK_IMAGE = 5101
     }
 
     private lateinit var repository: SceneDocumentRepository
@@ -134,7 +135,7 @@ class SceneEditorActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
         }
-        firstRow.addView(makeButton("＋ Gambar uji", 12) { addTestImage() },
+        firstRow.addView(makeButton("＋ Galeri", 12) { openImagePicker() },
             LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(5) })
         firstRow.addView(makeButton("Layers", 12) { showLayers() },
             LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(5) })
@@ -236,6 +237,63 @@ class SceneEditorActivity : Activity() {
             statusView.text = "Canvas diubah, tetapi gagal menyimpan: ${error.message}"
         }
     }
+    private fun openImagePicker() {
+        val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "image/*"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        try {
+            startActivityForResult(picker, REQUEST_PICK_IMAGE)
+        } catch (error: Exception) {
+            Toast.makeText(this, "Galeri tidak tersedia: ${error.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    @Deprecated("Uses the platform document picker result callback")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_PICK_IMAGE || resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+        try {
+            val imported = SceneImageStorage.import(this, uri)
+            val nextZ = (document.layers.maxOfOrNull { it.zIndex } ?: -1) + 1
+            val width = 0.46f
+            val imageAspect = imported.width.toFloat() / imported.height.toFloat()
+            val height = (width * document.canvas.width / document.canvas.height / imageAspect)
+                .coerceIn(0.03f, 2f)
+            val layer = SceneLayer(
+                id = "image_" + java.util.UUID.randomUUID().toString().replace("-", ""),
+                moduleId = TEST_IMAGE_MODULE,
+                displayName = "Image ${document.layers.size + 1}",
+                zIndex = nextZ,
+                transform = SceneTransform(
+                    x = 0.10f,
+                    y = 0.10f,
+                    width = width,
+                    height = height
+                ),
+                configuration = mapOf(
+                    "image_file_id" to imported.id,
+                    "x_percent" to "10",
+                    "y_percent" to "10",
+                    "width_percent" to "46",
+                    "opacity" to "1"
+                )
+            )
+            document = document.copy(layers = document.layers + layer)
+            editor.setScene(document, layer.id)
+            streamService?.applySceneDocument(document)
+            statusView.text = "Gambar berhasil diimpor. Geser, ubah ukuran, atau putar."
+        } catch (error: Exception) {
+            Toast.makeText(
+                this,
+                "Gagal mengimpor gambar: ${error.message ?: "format tidak didukung"}",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
     private fun addTestImage() {
         val nextZ = (document.layers.maxOfOrNull { it.zIndex } ?: -1) + 1
         val layer = SceneLayer(
