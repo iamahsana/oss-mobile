@@ -65,7 +65,7 @@ object TextLayerBitmapFactory {
         val lines = mutableListOf<String>()
         config.text.split('\\n').forEach { paragraph ->
             var line = ""
-            paragraph.split(Regex("\\\\s+")).forEach { word ->
+            paragraph.split(Regex("\\s+")).forEach { word ->
                 val candidate = if (line.isEmpty()) word else "$line $word"
                 if (line.isNotEmpty() && paint.measureText(candidate) > wrapWidth - 48f) {
                     lines += line
