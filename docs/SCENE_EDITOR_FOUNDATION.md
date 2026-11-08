@@ -16,7 +16,8 @@ Status: implementation in progress. This document defines the complete scene-edi
 - Generic private media-asset storage for GIF and video inputs, using SAF-selected URIs, MIME allowlists, bounded file sizes, generated IDs, and no persisted temporary URI.
 
 ## Remaining media renderer work before calling the foundation complete
-- Animated GIF: frame decoder, disposal/delay handling, bounded frame cache, and GL texture refresh on the encoder render thread.
+- Animated GIF: implemented with RootEncoder 2.8.1 GifFilterRender, parser preflight, frame/dimension/memory caps, GL-thread frame selection, editor poster thumbnail, and LIVE scene renderer.
+- Video source: MediaExtractor/MediaCodec decode, audio-track exclusion by default, timestamp pacing, pause/loop controls, and lifecycle-safe release.
 - Video source: MediaExtractor/MediaCodec decode, audio-track exclusion by default, timestamp pacing, pause/loop controls, and lifecycle-safe release.
 - Editor: frame/poster thumbnails and playback indicators that never start a second media decoder during normal edit gestures.
 - Multi-select canvas gestures and group resize/rotate as a single bounding-box transform.
