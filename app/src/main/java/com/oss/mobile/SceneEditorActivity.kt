@@ -850,7 +850,14 @@ class SceneEditorActivity : Activity() {
 
     private fun checkpointHistory() {
         history.record(document)
-        updateHistoryButtons()
+        // The caller immediately applies an edit, so expose Undo before the
+        // resulting document callback (canvas gestures) or setScene call.
+        if (::undoButton.isInitialized) {
+            undoButton.isEnabled = true
+            undoButton.alpha = 1f
+            redoButton.isEnabled = false
+            redoButton.alpha = 0.45f
+        }
     }
 
     private fun updateHistoryButtons() {
