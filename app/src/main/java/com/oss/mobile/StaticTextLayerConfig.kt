@@ -24,7 +24,9 @@ data class StaticTextLayerConfig(
     val backgroundRadius: Float = 18f,
     val italic: Boolean = false,
     val fontFamily: FontFamily = FontFamily.SANS,
-    val backgroundOpacity: Int = 86
+    val backgroundOpacity: Int = 86,
+    val underline: Boolean = false,
+    val strikethrough: Boolean = false
 ) {
     enum class Alignment { LEFT, CENTER, RIGHT }
     enum class FontFamily { SANS, SERIF, MONOSPACE }
@@ -52,7 +54,9 @@ data class StaticTextLayerConfig(
         KEY_BACKGROUND_RADIUS to backgroundRadius.toString(),
         KEY_ITALIC to italic.toString(),
         KEY_FONT_FAMILY to fontFamily.name,
-        KEY_BACKGROUND_OPACITY to backgroundOpacity.toString()
+        KEY_BACKGROUND_OPACITY to backgroundOpacity.toString(),
+        KEY_UNDERLINE to underline.toString(),
+        KEY_STRIKETHROUGH to strikethrough.toString()
     )
 
     companion object {
@@ -72,6 +76,8 @@ data class StaticTextLayerConfig(
         const val KEY_ITALIC = "italic"
         const val KEY_FONT_FAMILY = "font_family"
         const val KEY_BACKGROUND_OPACITY = "background_opacity"
+        const val KEY_UNDERLINE = "underline"
+        const val KEY_STRIKETHROUGH = "strikethrough"
 
         fun from(values: Map<String, String>): StaticTextLayerConfig {
             val text = values[KEY_TEXT] ?: "Teks"
@@ -92,7 +98,9 @@ data class StaticTextLayerConfig(
             val italic = values[KEY_ITALIC]?.toBooleanStrictOrNull() ?: false
             val fontFamily = runCatching { FontFamily.valueOf(values[KEY_FONT_FAMILY] ?: "SANS") }.getOrDefault(FontFamily.SANS)
             val backgroundOpacity = values[KEY_BACKGROUND_OPACITY]?.toIntOrNull()?.coerceIn(0, 100) ?: 86
-            return StaticTextLayerConfig(text, color, size, bold, alignment, outlineWidth, shadow, backgroundEnabled, backgroundColor, backgroundGradient, backgroundGradientEnd, backgroundRadius, italic, fontFamily, backgroundOpacity)
+            val underline = values[KEY_UNDERLINE]?.toBooleanStrictOrNull() ?: false
+            val strikethrough = values[KEY_STRIKETHROUGH]?.toBooleanStrictOrNull() ?: false
+            return StaticTextLayerConfig(text, color, size, bold, alignment, outlineWidth, shadow, backgroundEnabled, backgroundColor, backgroundGradient, backgroundGradientEnd, backgroundRadius, italic, fontFamily, backgroundOpacity, underline, strikethrough)
         }
     }
 }
@@ -113,6 +121,8 @@ object TextLayerBitmapFactory {
             }
             typeface = Typeface.create(family, style)
             textAlign = Paint.Align.LEFT
+            isUnderlineText = config.underline
+            isStrikeThruText = config.strikethrough
         }
         val lines = mutableListOf<String>()
         config.text.split('\n').forEach { paragraph ->
