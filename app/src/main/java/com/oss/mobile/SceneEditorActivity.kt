@@ -75,226 +75,175 @@ class SceneEditorActivity : Activity() {
     }
 
     private fun buildEditor() {
+        // PixelLab-inspired workspace: fixed canvas stage + separate bottom tool dock.
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(12), dp(14), dp(12))
-            setBackgroundColor(Color.rgb(11, 18, 25))
+            setBackgroundColor(Color.rgb(241, 243, 247))
+            setPadding(dp(10), dp(8), dp(10), dp(8))
         }
 
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        val back = makeButton("‹", 42) { finish() }
-        header.addView(back, LinearLayout.LayoutParams(dp(46), dp(44)))
+        header.addView(makeButton("‹", 22) { finish() },
+            LinearLayout.LayoutParams(dp(44), dp(44)))
         titleView = TextView(this).apply {
             text = document.name
             textSize = 17f
-            setTextColor(Color.WHITE)
-            setPadding(dp(10), 0, dp(8), 0)
+            setTextColor(Color.rgb(28, 34, 45))
+            setPadding(dp(8), 0, dp(4), 0)
             maxLines = 1
         }
         header.addView(titleView, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        header.addView(makeButton("Simpan", 14) { saveScene() })
+        header.addView(makeButton("↶", 18) { undoScene() })
+        header.addView(makeButton("↷", 18) { redoScene() })
+        header.addView(makeButton("Simpan", 12) { saveScene() })
         root.addView(header)
 
+        val canvasToolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(4), 0, dp(4))
+        }
+        canvasSizeButton = makeButton(canvasButtonLabel(), 10) { showCanvasSizes() }
+        canvasToolbar.addView(canvasSizeButton,
+            LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(5) })
+        canvasToolbar.addView(makeButton("Pas layar", 10) {
+            editor.resetViewport()
+            statusView.text = "Tampilan editor diatur ulang; ukuran scene tidak berubah."
+        })
+        root.addView(canvasToolbar)
+
         statusView = TextView(this).apply {
-            text = "Geser objek • tarik sudut untuk ubah ukuran • putar dari handle atas"
+            text = "Pilih elemen di canvas untuk mengeditnya. Canvas ini adalah komposisi LIVE."
             textSize = 11f
-            setTextColor(Color.rgb(151, 177, 194))
-            setPadding(dp(4), dp(8), dp(4), dp(8))
+            setTextColor(Color.rgb(91, 101, 118))
+            setPadding(dp(4), dp(3), dp(4), dp(5))
         }
         root.addView(statusView)
 
-        val historyRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-        undoButton = makeButton("↶ Undo", 12) { undoScene() }
-        redoButton = makeButton("↷ Redo", 12) { redoScene() }
-        historyRow.addView(undoButton, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(4) })
-        historyRow.addView(redoButton, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginStart = dp(4) })
-        root.addView(historyRow)
-        updateHistoryButtons()
-
-        canvasSizeButton = makeButton(canvasButtonLabel(), 12) { showCanvasSizes() }
-        val viewportControls = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-        viewportControls.addView(canvasSizeButton,
-            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(4) })
-        viewportControls.addView(makeButton("Reset tampilan", 11) {
-            editor.resetViewport()
-            statusView.text = "Tampilan canvas dikembalikan ke ukuran pas layar."
-        }, LinearLayout.LayoutParams(0, dp(42), 0.65f).apply { marginStart = dp(4) })
-        root.addView(viewportControls,
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)).apply {
-                bottomMargin = dp(6)
-            })
-
+        // The stage receives all remaining space. Dock controls never cover the canvas.
         editor = SceneEditorCanvasView(this).apply {
             setScene(document)
             onEditStarted = { checkpointHistory() }
             onDocumentChanged = { updated ->
                 document = updated
                 updateHistoryButtons()
-                // Publish transforms immediately. The GL renderer coalesces pointer updates.
                 val applied = streamService?.applySceneDocument(updated) == true
-                statusView.text = if (applied) {
-                    "Perubahan sedang diterapkan ke LIVE"
-                } else {
-                    "Mode edit • simpan scene sebelum memulai LIVE"
-                }
+                statusView.text = if (applied) "Perubahan diterapkan ke scene LIVE"
+                    else "Mode edit • perubahan tersimpan pada dokumen scene"
             }
             onSelectionChanged = { layer ->
-                if (layer != null) {
-                    statusView.text = if (layer.locked) {
-                        "${layer.displayName} • terkunci"
-                    } else {
-                        "${layer.displayName} • siap diedit"
-                    }
-                }
+                statusView.text = if (layer == null) "Canvas siap • pilih atau tambahkan elemen"
+                    else if (layer.locked) "${layer.displayName} • terkunci"
+                    else "${layer.displayName} • dipilih"
             }
         }
         root.addView(editor, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
         ).apply {
-            topMargin = dp(4)
-            bottomMargin = dp(10)
+            topMargin = dp(2)
+            bottomMargin = dp(8)
         })
 
-        val firstRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
+        // Persistent bottom dock: a separate surface below the canvas, not an overlay.
+        val dock = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = roundedBackground(Color.WHITE, 16)
+            setPadding(dp(9), dp(8), dp(9), dp(8))
         }
-        firstRow.addView(makeButton("＋ Teks", 10) { showAddTextDialog() },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(3) })
-        firstRow.addView(makeButton("＋ Galeri", 10) { openImagePicker() },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply {
-                marginStart = dp(3)
-                marginEnd = dp(3)
-            })
-        firstRow.addView(makeButton("Edit teks", 10) { editSelectedText() },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply {
-                marginStart = dp(3)
-                marginEnd = dp(3)
-            })
-        firstRow.addView(makeButton("Layers", 10) { showLayers() },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(3) })
-        root.addView(firstRow)
-
-        val shapeRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
+        val dockTitle = TextView(this).apply {
+            text = "TAMBAH ELEMEN"
+            textSize = 10f
+            setTextColor(Color.rgb(104, 112, 127))
+            setPadding(dp(3), 0, 0, dp(5))
         }
-        shapeRow.addView(makeButton("＋ Shape", 11) { showAddShapeDialog() },
-            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(5) })
-        shapeRow.addView(makeButton("Edit shape", 11) { editSelectedShape() },
-            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(5) })
-        root.addView(shapeRow)
+        dock.addView(dockTitle)
 
-        val stickerRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
+        fun toolRow(vararg items: Pair<String, () -> Unit>) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+            }
+            items.forEachIndexed { index, item ->
+                row.addView(makeButton(item.first, 10, item.second),
+                    LinearLayout.LayoutParams(0, dp(39), 1f).apply {
+                        if (index > 0) marginStart = dp(3)
+                        if (index < items.lastIndex) marginEnd = dp(3)
+                    })
+            }
+            dock.addView(row)
         }
-        stickerRow.addView(makeButton("＋ Stiker", 11) { showStickerPicker() },
-            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(4) })
-        stickerRow.addView(makeButton("＋ GIF", 11) { openGifPicker() },
-            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(4); marginEnd = dp(4) })
-        stickerRow.addView(makeButton("＋ Video", 11) { openVideoPicker() },
-            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(4) })
-        root.addView(stickerRow)
 
-        val secondRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
+        toolRow(
+            "Teks" to { showAddTextDialog() },
+            "Gambar" to { openImagePicker() },
+            "Stiker" to { showStickerPicker() },
+            "Bentuk" to { showAddShapeDialog() }
+        )
+        toolRow(
+            "GIF" to { openGifPicker() },
+            "Video" to { openVideoPicker() },
+            "Layers" to { showLayers() },
+            "Tambah lain" to { showAddSourceMenu() }
+        )
+
+        val selectedToolsTitle = TextView(this).apply {
+            text = "PENGATURAN OBJEK"
+            textSize = 10f
+            setTextColor(Color.rgb(104, 112, 127))
+            setPadding(dp(3), dp(8), 0, dp(5))
         }
-        secondRow.addView(makeButton("Tampilkan / sembunyikan", 11) { toggleVisibility() },
-            LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(5) })
-        secondRow.addView(makeButton("Kunci / buka", 11) { toggleLock() },
-            LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginStart = dp(5) })
-        secondRow.addView(makeButton("Hapus", 11) { deleteSelected() },
-            LinearLayout.LayoutParams(0, dp(44), 0.7f).apply { marginStart = dp(5) })
-        root.addView(secondRow)
-
-        val layerActions = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-        layerActions.addView(makeButton("Duplikat", 11) { duplicateSelected() },
-            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(5) })
-        layerActions.addView(makeButton("Naik layer", 11) { moveSelectedLayer(1) },
-            LinearLayout.LayoutParams(0, dp(42), 1f).apply {
-                marginStart = dp(5)
-                marginEnd = dp(5)
-            })
-        layerActions.addView(makeButton("Turun layer", 11) { moveSelectedLayer(-1) },
-            LinearLayout.LayoutParams(0, dp(42), 1f).apply {
-                marginStart = dp(5)
-                marginEnd = dp(5)
-            })
-        layerActions.addView(makeButton("Nama layer", 10) { renameSelectedLayer() },
-            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(5) })
-        root.addView(layerActions)
-
-        val imageEditRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-        imageEditRow.addView(makeButton("Edit gambar", 11) { editSelectedImage() },
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)).apply {
-                topMargin = dp(5)
-            })
-        root.addView(imageEditRow)
-
-        val precisionRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-        precisionRow.addView(makeButton("⌖ Posisi & ukuran presisi", 11) { editSelectedTransform() },
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)).apply {
-                topMargin = dp(5)
-            })
-        root.addView(precisionRow)
-
-
-        val groupRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-        groupRow.addView(makeButton("Kelompokkan", 11) { chooseLayersForGrouping() },
-            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(4) })
-        groupRow.addView(makeButton("Lepas grup", 11) { ungroupSelected() },
-            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(4) })
-        root.addView(groupRow)
-
-        val arrangeRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-        arrangeRow.addView(makeButton("Ratakan posisi", 11) { arrangeSelectedLayers(false) },
-            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(4) })
-        arrangeRow.addView(makeButton("Sebar merata", 11) { arrangeSelectedLayers(true) },
-            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(4) })
-        root.addView(arrangeRow)
-
-
-        val multiSelectRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-        multiSelectRow.addView(makeButton("Multi pilih layer", 11) {
-            val enabled = !editor.isMultiSelectEnabled()
-            editor.setMultiSelectEnabled(enabled)
-            statusView.text = if (enabled) "Mode multi-pilih aktif • ketuk beberapa layer, lalu geser bersama"
-                else "Mode multi-pilih nonaktif"
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40)))
-        root.addView(multiSelectRow)
+        dock.addView(selectedToolsTitle)
+        toolRow(
+            "Posisi / ukuran" to { editSelectedTransform() },
+            "Edit teks" to { editSelectedText() },
+            "Edit gambar" to { editSelectedImage() },
+            "Edit bentuk" to { editSelectedShape() }
+        )
+        toolRow(
+            "Duplikat" to { duplicateSelected() },
+            "Urutan layer" to { showLayers() },
+            "Kunci" to { toggleLock() },
+            "Hapus" to { deleteSelected() }
+        )
+        toolRow(
+            "Grup" to { chooseLayersForGrouping() },
+            "Lepas grup" to { ungroupSelected() },
+            "Ratakan" to { arrangeSelectedLayers(false) },
+            "Sebar" to { arrangeSelectedLayers(true) }
+        )
+        root.addView(dock, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
 
         setContentView(root)
+        updateHistoryButtons()
     }
 
+    private fun showAddSourceMenu() {
+        val choices = arrayOf("Share Screen", "Kamera", "Audio / sumber eksternal")
+        AlertDialog.Builder(this)
+            .setTitle("Tambah sumber")
+            .setItems(choices) { _, which ->
+                when (which) {
+                    0 -> showScreenSourceInfo()
+                    1 -> Toast.makeText(this, "Sumber kamera disiapkan sebagai modul berikutnya.", Toast.LENGTH_LONG).show()
+                    else -> Toast.makeText(this, "Sumber audio dikelola melalui Audio Mixer.", Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton("Tutup", null)
+            .show()
+    }
+
+    private fun showScreenSourceInfo() {
+        AlertDialog.Builder(this)
+            .setTitle("Share Screen sebagai elemen")
+            .setMessage("Share Screen akan menjadi sumber visual tersendiri di dalam scene: dapat diposisikan, diubah ukuran, di-crop, dan diatur urutan layer-nya. Izin MediaProjection Android tetap diminta saat memulai LIVE. Integrasi renderer sumber layar per-layer masih perlu diselesaikan sebelum tombol ini menambahkan layer aktif.")
+            .setPositiveButton("Mengerti", null)
+            .show()
+    }
 
     private fun chooseLayersForGrouping() {
         val layers = document.layers
