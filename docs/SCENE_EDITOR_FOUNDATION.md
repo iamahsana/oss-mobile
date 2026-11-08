@@ -17,7 +17,7 @@ Status: implementation in progress. This document defines the complete scene-edi
 
 ## Remaining media renderer work before calling the foundation complete
 - Animated GIF: implemented with RootEncoder 2.8.1 GifFilterRender, parser preflight, frame/dimension/memory caps, GL-thread frame selection, editor poster thumbnail, and LIVE scene renderer.
-- Video source: MediaExtractor/MediaCodec decode, audio-track exclusion by default, timestamp pacing, pause/loop controls, and lifecycle-safe release.
+- Video source: implemented with RootEncoder SurfaceFilterRender + Android MediaPlayer, private SAF asset import, poster thumbnail, muted audio, looping playback, file/resolution/duration caps, and renderer lifecycle cleanup.
 - Video source: MediaExtractor/MediaCodec decode, audio-track exclusion by default, timestamp pacing, pause/loop controls, and lifecycle-safe release.
 - Editor: frame/poster thumbnails and playback indicators that never start a second media decoder during normal edit gestures.
 - Multi-select canvas gestures and group resize/rotate as a single bounding-box transform.
