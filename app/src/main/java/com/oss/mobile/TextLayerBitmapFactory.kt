@@ -30,7 +30,7 @@ object TextLayerBitmapFactory {
             .setIncludePad(true)
             .setLineSpacing(0f, 1.08f)
             .build()
-        val width = MAX_WIDTH
+        val width = (0 until layout.lineCount).maxOfOrNull { layout.getLineWidth(it).toInt() }\n            ?.plus(PADDING * 2)?.coerceIn(1, MAX_WIDTH) ?: (PADDING * 2)
         val height = (layout.height + PADDING * 2).coerceIn(1, MAX_HEIGHT)
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         Canvas(bitmap).apply {
