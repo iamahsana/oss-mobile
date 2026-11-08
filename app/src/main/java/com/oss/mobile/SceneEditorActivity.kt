@@ -1481,35 +1481,6 @@ class SceneEditorActivity : Activity() {
             .show()
     }
 
-    private fun renameSelectedLayer() {
-        val selected = editor.selectedLayer() ?: return noSelection()
-        val field = EditText(this).apply {
-            setSingleLine(true)
-            setText(selected.displayName)
-            setSelection(text.length)
-            setPadding(dp(20), dp(12), dp(20), dp(12))
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Nama layer")
-            .setView(field)
-            .setPositiveButton("Simpan") { _, _ ->
-                val name = field.text.toString().trim()
-                if (name.isBlank()) {
-                    Toast.makeText(this, "Nama layer tidak boleh kosong.", Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
-                checkpointHistory()
-                document = document.copy(layers = document.layers.map {
-                    if (it.id == selected.id) it.copy(displayName = name.take(48)) else it
-                })
-                editor.setScene(document, selected.id)
-                streamService?.applySceneDocument(document)
-                statusView.text = "Nama layer diperbarui."
-            }
-            .setNegativeButton("Batal", null)
-            .show()
-    }
-
     private fun editSelectedImage() {
         val selected = editor.selectedLayer() ?: return noSelection()
         if (selected.moduleId != TEST_IMAGE_MODULE) {
