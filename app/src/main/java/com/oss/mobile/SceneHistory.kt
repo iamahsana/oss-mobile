@@ -37,6 +37,7 @@ class SceneHistory(initial: SceneDocument, private val capacity: Int = 50) {
         return next
     }
 
-    fun canUndo(): Boolean = undoStack.size > 1
+    fun canUndo(current: SceneDocument): Boolean = undoStack.isNotEmpty() &&
+        (undoStack.size > 1 || undoStack.last() != current)
     fun canRedo(): Boolean = redoStack.isNotEmpty()
 }
