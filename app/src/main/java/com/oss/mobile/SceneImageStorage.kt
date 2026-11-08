@@ -20,7 +20,7 @@ object SceneImageStorage {
 
     data class ImportedImage(val id: String, val width: Int, val height: Int)
 
-    fun import(context: Context, uri: Uri): ImportedImage {
+    fun importImage(context: Context, uri: Uri): ImportedImage {
         val directory = imageDirectory(context)
         if (!directory.exists() && !directory.mkdirs()) {
             throw IllegalStateException("Tidak bisa membuat penyimpanan gambar")
