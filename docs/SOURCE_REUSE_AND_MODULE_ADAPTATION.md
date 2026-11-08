@@ -24,6 +24,35 @@ These are candidates for selective adoption, not automatic wholesale integration
 | Video | Android platform MediaMetadataRetriever / MediaCodec and existing RootEncoder integration | Thumbnail/frame extraction and existing encode/render path | Avoid a second competing encoder or duplicating decoder resources |
 | Streaming | RootEncoder already in use | RTMP and GL composition primitives | Preserve verified RTMP/audio path; don't replace it during editor work |
 
+## Community-created modules (first-class product requirement)
+
+OSS must support modules created by ordinary users and community developers, not only modules published by the OSS maintainers. The initial beta may ship with built-in elements only; the extension architecture must not assume that all future modules come from the official team.
+
+### Creator workflow
+
+- Provide a documented, versioned OSS Module SDK/API and starter templates so developers can create an element without modifying the OSS core.
+- A module declares a stable reverse-domain ID, display name, version, minimum OSS module API version, element/source type, capabilities, permissions, settings schema, and renderer/editor entry points.
+- Provide a module manifest, validation tool, sample modules, and a build/package format that can be installed by the future Extension Center.
+- Support modules that add both an element and its own property controls. The properties UI must render inside the same adaptive bottom dock and follow OSS interaction conventions.
+- Support community modules for sources, overlays, effects, widgets, automation triggers, and integrations as the API matures.
+
+### Security, compatibility, and trust
+
+- Third-party modules must not receive unrestricted access to the app, files, microphone, camera, screen capture, network, or accessibility APIs by default.
+- Use explicit capability/permission declarations and user consent. Reject undeclared capabilities.
+- Prefer declarative manifests and sandboxed extension points. Native executable code requires stronger review, signing/provenance, and compatibility checks before distribution.
+- Validate package integrity, module ID uniqueness, API compatibility, resource limits, and dependency/license metadata before installation.
+- The Extension Center should distinguish official, community, and private/unlisted modules; show publisher, version, permissions, changelog, license, and user feedback.
+- Provide disable, uninstall, update, and rollback paths. A broken module must not crash the editor or prevent the user from opening saved scenes.
+- Saved scenes store stable module IDs and versioned configuration. If a module is missing or incompatible, preserve its layer as an unavailable placeholder and never silently delete it.
+
+### Release staging
+
+1. Beta: built-in modules only, but every built-in module uses the same manifest/registry contract intended for external modules.
+2. Developer preview: publish the SDK documentation, starter project, manifest schema, and sample module.
+3. Extension Center: allow community submission and installation, with validation, permissions, publisher identity, moderation/reporting, and version management.
+4. Mature ecosystem: add discovery, ratings/reviews, dependency resolution, compatibility badges, and creator documentation.
+
 ## License and attribution checklist
 
 1. Prefer Apache-2.0, MIT, or BSD components compatible with OSS's chosen distribution license.
