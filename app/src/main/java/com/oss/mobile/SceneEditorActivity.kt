@@ -31,6 +31,7 @@ class SceneEditorActivity : Activity() {
         private const val TEST_IMAGE_MODULE = "oss.source.image.static"
         private const val REQUEST_PICK_IMAGE = 5101
         private const val REQUEST_PICK_GIF = 5102
+        private const val REQUEST_PICK_VIDEO = 5103
     }
 
     private lateinit var repository: SceneDocumentRepository
@@ -190,6 +191,8 @@ class SceneEditorActivity : Activity() {
         stickerRow.addView(makeButton("＋ Stiker", 11) { showStickerPicker() },
             LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(4) })
         stickerRow.addView(makeButton("＋ GIF", 11) { openGifPicker() },
+            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(4); marginEnd = dp(4) })
+        stickerRow.addView(makeButton("＋ Video", 11) { openVideoPicker() },
             LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(4) })
         root.addView(stickerRow)
 
@@ -970,11 +973,48 @@ class SceneEditorActivity : Activity() {
         }
     }
 
+    private fun openVideoPicker() {
+        val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "video/*"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        try {
+            startActivityForResult(picker, REQUEST_PICK_VIDEO)
+        } catch (error: Exception) {
+            Toast.makeText(this, "Pemilih video tidak tersedia: ${error.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
     @Deprecated("Uses the platform document picker result callback")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (resultCode != RESULT_OK) return
         val uri = data?.data ?: return
+        if (requestCode == REQUEST_PICK_VIDEO) {
+            try {
+                val imported = SceneMediaAssetStorage.import(this, uri)
+                require(imported.asset.kind == SceneMediaAsset.Kind.VIDEO) { "Pilih file video MP4 atau WebM." }
+                require(imported.asset.sizeBytes <= SceneVideoLayerConfig.MAX_FILE_BYTES) { "Ukuran video maksimal 50 MB." }
+                val nextZ = (document.layers.maxOfOrNull { it.zIndex } ?: -1) + 1
+                val layer = SceneLayer(
+                    id = "video_" + java.util.UUID.randomUUID().toString().replace("-", ""),
+                    moduleId = SceneVideoLayerConfig.MODULE_ID,
+                    displayName = "Video ${document.layers.size + 1}",
+                    zIndex = nextZ,
+                    transform = SceneTransform(x = 0.25f, y = 0.25f, width = 0.50f, height = 0.50f),
+                    configuration = SceneVideoLayerConfig(imported.asset.id).toMap()
+                )
+                checkpointHistory()
+                document = document.copy(layers = document.layers + layer)
+                editor.setScene(document, layer.id)
+                streamService?.applySceneDocument(document)
+                statusView.text = "Video ditambahkan. LIVE memutar video berulang tanpa audio."
+            } catch (error: Exception) {
+                Toast.makeText(this, "Gagal mengimpor video: ${error.message ?: "format tidak didukung"}", Toast.LENGTH_LONG).show()
+            }
+            return
+        }
         if (requestCode == REQUEST_PICK_GIF) {
             try {
                 val imported = SceneMediaAssetStorage.import(this, uri)
