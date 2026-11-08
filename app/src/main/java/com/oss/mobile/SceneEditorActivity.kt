@@ -18,6 +18,7 @@ import android.widget.CheckBox
 import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.SeekBar
+import android.widget.ScrollView
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -217,8 +218,16 @@ class SceneEditorActivity : Activity() {
             "Ratakan" to { arrangeSelectedLayers(false) },
             "Sebar" to { arrangeSelectedLayers(true) }
         )
-        root.addView(dock, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        val dockScroll = ScrollView(this).apply {
+            isFillViewport = false
+            isVerticalScrollBarEnabled = true
+            addView(dock)
+        }
+        val dockHeight = if (resources.configuration.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE) dp(104)
+            else ViewGroup.LayoutParams.WRAP_CONTENT
+        root.addView(dockScroll, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dockHeight
         ))
 
         propertyPanel = LinearLayout(this).apply {
