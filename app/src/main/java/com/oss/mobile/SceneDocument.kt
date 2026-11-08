@@ -23,13 +23,18 @@ data class SceneDocument(
         require(duplicateIds.isEmpty()) {
             "Scene layer IDs must be unique: ${duplicateIds.joinToString()}"
         }
+        require(layers.count { it.moduleId == "oss.source.screen.capture" } <= 1) {
+            "A scene can contain only one Share Screen capture source"
+        }
     }
 
     /** Visible layers in deterministic back-to-front order. */
     fun renderOrder(): List<SceneLayer> = layers
         .asSequence()
         .filter { it.visible }
-        .sortedWith(compareBy<SceneLayer> { it.zIndex }.thenBy { it.id })
+        // Share Screen is the scene background source; overlays always compose above it.
+        .sortedWith(compareBy<SceneLayer> { if (it.moduleId == "oss.source.screen.capture") 0 else 1 }
+            .thenBy { it.zIndex }.thenBy { it.id })
         .toList()
 
     companion object {
