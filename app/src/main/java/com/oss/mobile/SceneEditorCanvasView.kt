@@ -490,6 +490,21 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     private fun canvasTop(scale: Float): Float =
         height / 2f + viewportPanY - document.canvas.height * scale / 2f
 
+    fun resetViewport() {
+        viewportZoom = 1f
+        viewportPanX = 0f
+        viewportPanY = 0f
+        invalidate()
+    }
+
+    private fun constrainViewportPan() {
+        val scale = sceneScale()
+        val maxPanX = ((document.canvas.width * scale - width + 48f * density) / 2f).coerceAtLeast(0f)
+        val maxPanY = ((document.canvas.height * scale - height + 48f * density) / 2f).coerceAtLeast(0f)
+        viewportPanX = viewportPanX.coerceIn(-maxPanX, maxPanX)
+        viewportPanY = viewportPanY.coerceIn(-maxPanY, maxPanY)
+    }
+
     private fun pointerDistance(event: MotionEvent): Float {
         if (event.pointerCount < 2) return 1f
         val dx = event.getX(0) - event.getX(1)
@@ -607,6 +622,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                     viewportZoom = (pinchStartZoom * ratio).coerceIn(1f, 4f)
                     viewportPanX = pinchStartPanX + pointerMidX(event) - pinchStartMidX
                     viewportPanY = pinchStartPanY + pointerMidY(event) - pinchStartMidY
+                    constrainViewportPan()
                     invalidate()
                     return true
                 }
