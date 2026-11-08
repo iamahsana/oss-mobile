@@ -354,9 +354,19 @@ class ScreenStreamService : Service(), ConnectChecker {
             applyWiredHeadsetInput(rawAudioInput)
 
             overlayCompositor = OverlayCompositor(output.getGlInterface())
+            val moduleRegistry = OverlayModuleRegistry()
+            listOf(
+                StaticImageOverlayModule(),
+                StaticTextOverlayModule(),
+                ShapeOverlayModule(),
+                EmojiStickerOverlayModule(),
+                SceneGifOverlayModule(),
+                SceneVideoOverlayModule(),
+                SceneScreenSourceModule(projection!!)
+            ).forEach(moduleRegistry::register)
             sceneRendererController = SceneRendererController(
                 this,
-                listOf(StaticImageOverlayModule(), StaticTextOverlayModule(), ShapeOverlayModule(), EmojiStickerOverlayModule(), SceneGifOverlayModule(), SceneVideoOverlayModule(), SceneScreenSourceModule(projection!!)),
+                moduleRegistry.snapshot(),
                 overlayCompositor!!
             )
             if (savedScene != null) {
