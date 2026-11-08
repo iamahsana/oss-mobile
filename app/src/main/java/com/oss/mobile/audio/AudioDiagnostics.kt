@@ -6,6 +6,9 @@ import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import com.pedro.encoder.Frame
+import com.oss.mobile.diagnostics.DiagnosticCategory
+import com.oss.mobile.diagnostics.DiagnosticSeverity
+import com.oss.mobile.diagnostics.OssDiagnostics
 import java.util.ArrayDeque
 import kotlin.math.sqrt
 
@@ -40,6 +43,7 @@ object AudioDiagnostics {
         synchronized(lock) {
             pcmStats.clear()
         }
+        OssDiagnostics.center.beginSession("audio:$label")
         add("----- New capture session: $label -----")
     }
 
@@ -50,6 +54,15 @@ object AudioDiagnostics {
             while (events.size > MAX_EVENTS) events.removeFirst()
         }
         Log.i(TAG, message)
+        OssDiagnostics.center.record(
+            category = DiagnosticCategory.AUDIO,
+            severity = when {
+                message.contains("unable", true) || message.contains("error", true) || message.contains("failed", true) -> DiagnosticSeverity.WARNING
+                else -> DiagnosticSeverity.INFO
+            },
+            code = "AUDIO_EVENT",
+            message = message
+        )
     }
 
     fun recordPcm(label: String, frame: Frame) {
