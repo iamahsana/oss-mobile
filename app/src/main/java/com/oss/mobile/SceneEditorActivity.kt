@@ -205,7 +205,7 @@ class SceneEditorActivity : Activity() {
             item("Posisi / ukuran") { editSelectedTransform() }
             when (selected.moduleId) {
                 StaticTextLayerConfig.MODULE_ID -> item("Teks & gaya") { editSelectedText() }
-                StaticImageLayerConfig.MODULE_ID -> item("Gambar / crop") { editSelectedImage() }
+                "oss.source.image.static" -> item("Gambar / crop") { editSelectedImage() }
                 ShapeLayerConfig.MODULE_ID -> item("Warna / bentuk") { editSelectedShape() }
                 StickerLayerConfig.MODULE_ID -> item("Stiker") { Toast.makeText(this, "Pengaturan stiker tersedia melalui posisi, ukuran, dan opacity.", Toast.LENGTH_SHORT).show() }
             }
@@ -240,7 +240,7 @@ class SceneEditorActivity : Activity() {
         }
         tabs.addView(makeButton("Modul", 10) {
             dockShowingProperties = false
-            editor.clearSelection()
+            editor.setScene(document, null)
             renderBottomDock()
         }, LinearLayout.LayoutParams(0, dp(35), 1f))
         tabs.addView(makeButton("Properti", 10) {
