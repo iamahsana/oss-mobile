@@ -353,6 +353,10 @@ class SceneEditorActivity : Activity() {
             isChecked = current.italic
         }
         panel.addView(italicCheck)
+        val underlineCheck = CheckBox(this).apply { text = "Garis bawah (underline)"; setTextColor(Color.WHITE); isChecked = current.underline }
+        panel.addView(underlineCheck)
+        val strikeCheck = CheckBox(this).apply { text = "Coret teks (strikethrough)"; setTextColor(Color.WHITE); isChecked = current.strikethrough }
+        panel.addView(strikeCheck)
         val fontLabel = TextView(this).apply {
             text = "Jenis huruf"
             setTextColor(Color.WHITE)
@@ -541,6 +545,8 @@ class SceneEditorActivity : Activity() {
                     backgroundRadius = radiusSeek.progress.toFloat(),
                     backgroundOpacity = opacitySeek.progress,
                     italic = italicCheck.isChecked,
+                    underline = underlineCheck.isChecked,
+                    strikethrough = strikeCheck.isChecked,
                     fontFamily = fonts.firstOrNull { (label, _) -> (0 until fontGroup.childCount).any { i -> val child = fontGroup.getChildAt(i) as? RadioButton; child?.id == fontGroup.checkedRadioButtonId && child.text.toString() == label } }?.second ?: current.fontFamily
                 )
                 val bitmap = TextLayerBitmapFactory.create(config)
