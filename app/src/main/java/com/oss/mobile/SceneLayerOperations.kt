@@ -59,6 +59,33 @@ object SceneLayerOperations {
         })
     }
 
+    /**
+     * Resizes a whole group from its shared top-left anchor while preserving each
+     * member's relative position and proportions. The bounds are captured at gesture start.
+     */
+    fun resizeGroup(
+        document: SceneDocument,
+        groupId: String,
+        startBounds: SceneTransform,
+        newWidth: Float,
+        newHeight: Float
+    ): SceneDocument {
+        require(newWidth.isFinite() && newHeight.isFinite() && newWidth > 0f && newHeight > 0f)
+        val scaleX = (newWidth / startBounds.width).coerceIn(0.01f, 100f)
+        val scaleY = (newHeight / startBounds.height).coerceIn(0.01f, 100f)
+        return document.copy(layers = document.layers.map { layer ->
+            if (layer.groupId == groupId && !layer.locked) {
+                val t = layer.transform
+                layer.copy(transform = t.copy(
+                    x = startBounds.x + (t.x - startBounds.x) * scaleX,
+                    y = startBounds.y + (t.y - startBounds.y) * scaleY,
+                    width = (t.width * scaleX).coerceIn(0.03f, 2f),
+                    height = (t.height * scaleY).coerceIn(0.03f, 2f)
+                ))
+            } else layer
+        })
+    }
+
     /** Evenly spaces selected layers by their leading-edge order, retaining their sizes. */
     fun distribute(document: SceneDocument, layerIds: Set<String>, axis: Axis): SceneDocument {
         val selected = document.layers.filter { it.id in layerIds && !it.locked }
