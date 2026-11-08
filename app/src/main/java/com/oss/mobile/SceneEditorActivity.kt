@@ -1581,8 +1581,7 @@ class SceneEditorActivity : Activity() {
         document = document.copy(layers = document.layers.map {
             if (it.id == selected.id) it.copy(visible = !it.visible) else it
         })
-        editor.setScene(document, selected.id)
-        streamService?.applySceneDocument(document)
+        publishSceneEdit(selected.id, if (selected.visible) "Layer disembunyikan." else "Layer ditampilkan.")
     }
 
     private fun toggleLock() {
@@ -1591,9 +1590,7 @@ class SceneEditorActivity : Activity() {
         document = document.copy(layers = document.layers.map {
             if (it.id == selected.id) it.copy(locked = !it.locked) else it
         })
-        editor.setScene(document, selected.id)
-        statusView.text = if (selected.locked) "Layer dibuka." else "Layer dikunci."
-        streamService?.applySceneDocument(document)
+        publishSceneEdit(selected.id, if (selected.locked) "Layer dibuka." else "Layer dikunci.")
     }
 
     private fun deleteSelected() {
@@ -1604,9 +1601,9 @@ class SceneEditorActivity : Activity() {
         }
         checkpointHistory()
         document = document.copy(layers = document.layers.filterNot { it.id == selected.id })
-        editor.setScene(document, null)
-        streamService?.applySceneDocument(document)
-        statusView.text = "Layer dihapus."
+        publishSceneEdit(null, "Layer dihapus.")
+        dockShowingProperties = false
+        renderBottomDock()
     }
 
     private fun duplicateSelected() {
@@ -1638,6 +1635,10 @@ class SceneEditorActivity : Activity() {
     /** direction=1 moves toward the front; direction=-1 moves toward the back. */
     private fun moveSelectedLayer(direction: Int) {
         val selected = editor.selectedLayer() ?: return noSelection()
+        if (selected.moduleId == SceneScreenLayerConfig.MODULE_ID) {
+            Toast.makeText(this, "Share Screen tetap menjadi layer paling bawah.", Toast.LENGTH_SHORT).show()
+            return
+        }
         val ordered = document.layers.sortedWith(
             compareBy<SceneLayer> { it.zIndex }.thenBy { it.id }
         ).toMutableList()
@@ -1656,9 +1657,7 @@ class SceneEditorActivity : Activity() {
         }
         checkpointHistory()
         document = document.copy(layers = normalized)
-        editor.setScene(document, selected.id)
-        streamService?.applySceneDocument(document)
-        statusView.text = if (direction > 0) "Layer dinaikkan." else "Layer diturunkan."
+        publishSceneEdit(selected.id, if (direction > 0) "Layer dinaikkan." else "Layer diturunkan.")
     }
 
 
