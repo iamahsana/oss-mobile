@@ -38,6 +38,9 @@ class SceneEditorActivity : Activity() {
     private lateinit var statusView: TextView
     private lateinit var canvasSizeButton: Button
     private lateinit var document: SceneDocument
+    private lateinit var history: SceneHistory
+    private lateinit var undoButton: Button
+    private lateinit var redoButton: Button
     private var streamService: ScreenStreamService? = null
     private var serviceBound = false
 
@@ -60,6 +63,7 @@ class SceneEditorActivity : Activity() {
         document = runCatching { repository.load(sceneId) }.getOrElse {
             SceneDocument(id = sceneId, name = sceneName)
         }
+        history = SceneHistory(document)
         buildEditor()
         serviceBound = bindService(
             Intent(this, ScreenStreamService::class.java),
@@ -100,6 +104,17 @@ class SceneEditorActivity : Activity() {
         }
         root.addView(statusView)
 
+        val historyRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        undoButton = makeButton("↶ Undo", 12) { undoScene() }
+        redoButton = makeButton("↷ Redo", 12) { redoScene() }
+        historyRow.addView(undoButton, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(4) })
+        historyRow.addView(redoButton, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginStart = dp(4) })
+        root.addView(historyRow)
+        updateHistoryButtons()
+
         canvasSizeButton = makeButton(canvasButtonLabel(), 12) { showCanvasSizes() }
         root.addView(canvasSizeButton,
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)).apply {
@@ -108,8 +123,10 @@ class SceneEditorActivity : Activity() {
 
         editor = SceneEditorCanvasView(this).apply {
             setScene(document)
+            onEditStarted = { checkpointHistory() }
             onDocumentChanged = { updated ->
                 document = updated
+                updateHistoryButtons()
                 // Publish transforms immediately. The GL renderer coalesces pointer updates.
                 val applied = streamService?.applySceneDocument(updated) == true
                 statusView.text = if (applied) {
@@ -250,6 +267,7 @@ class SceneEditorActivity : Activity() {
     }
 
     private fun applyCanvasSize(canvas: SceneCanvas) {
+        checkpointHistory()
         document = document.copy(canvas = canvas)
         canvasSizeButton.text = canvasButtonLabel()
         editor.setScene(document, editor.selectedLayer()?.id)
@@ -817,6 +835,48 @@ class SceneEditorActivity : Activity() {
             }
             .setNegativeButton("Batal", null)
             .show()
+    }
+
+
+    private fun checkpointHistory() {
+        history.record(document)
+        updateHistoryButtons()
+    }
+
+    private fun updateHistoryButtons() {
+        if (!::undoButton.isInitialized || !::redoButton.isInitialized) return
+        undoButton.isEnabled = history.canUndo()
+        redoButton.isEnabled = history.canRedo()
+        undoButton.alpha = if (undoButton.isEnabled) 1f else 0.45f
+        redoButton.alpha = if (redoButton.isEnabled) 1f else 0.45f
+    }
+
+    private fun undoScene() {
+        val previous = history.undo(document)
+        if (previous == null) {
+            Toast.makeText(this, "Tidak ada perubahan untuk dibatalkan.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        document = previous
+        val selectedId = editor.selectedLayer()?.id?.takeIf { id -> document.layers.any { it.id == id } }
+        editor.setScene(document, selectedId)
+        streamService?.applySceneDocument(document)
+        statusView.text = "Perubahan terakhir dibatalkan."
+        updateHistoryButtons()
+    }
+
+    private fun redoScene() {
+        val next = history.redo()
+        if (next == null) {
+            Toast.makeText(this, "Tidak ada perubahan untuk diulangi.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        document = next
+        val selectedId = editor.selectedLayer()?.id?.takeIf { id -> document.layers.any { it.id == id } }
+        editor.setScene(document, selectedId)
+        streamService?.applySceneDocument(document)
+        statusView.text = "Perubahan diulangi."
+        updateHistoryButtons()
     }
 
     private fun noSelection() {
