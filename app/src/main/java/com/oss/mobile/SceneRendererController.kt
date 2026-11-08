@@ -87,7 +87,7 @@ class SceneRendererController(
             )
             CompositorLayer(
                 id = layer.id,
-                zIndex = layer.zIndex,
+                zIndex = if (layer.moduleId == SceneScreenLayerConfig.MODULE_ID) Int.MIN_VALUE else layer.zIndex,
                 renderer = renderer,
                 // Keep Share Screen attached at zero opacity while hidden so the
                 // MediaProjection VirtualDisplay is not released and recreated.
