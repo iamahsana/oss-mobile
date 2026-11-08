@@ -803,6 +803,17 @@ class SceneEditorActivity : Activity() {
                 override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
             })
         }
+        val cropXLabel = TextView(this).apply { text = "Posisi crop horizontal: ${(currentConfig.cropOffsetX * 100).toInt()}%"; setTextColor(Color.WHITE); textSize = 14f }
+        val cropX = SeekBar(this).apply { max = 200; progress = ((currentConfig.cropOffsetX + 1f) * 100).toInt(); setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener { override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) { cropXLabel.text = "Posisi crop horizontal: ${(progress - 100)}%" }; override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit; override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit }) }
+        val cropYLabel = TextView(this).apply { text = "Posisi crop vertikal: ${(currentConfig.cropOffsetY * 100).toInt()}%"; setTextColor(Color.WHITE); textSize = 14f }
+        val cropY = SeekBar(this).apply { max = 200; progress = ((currentConfig.cropOffsetY + 1f) * 100).toInt(); setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener { override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) { cropYLabel.text = "Posisi crop vertikal: ${(progress - 100)}%" }; override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit; override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit }) }
+        val borderLabel = TextView(this).apply { text = "Ketebalan border: ${(currentConfig.borderWidth * 100).toInt()}%"; setTextColor(Color.WHITE); textSize = 14f }
+        val border = SeekBar(this).apply { max = 8; progress = (currentConfig.borderWidth * 100).toInt(); setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener { override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) { borderLabel.text = "Ketebalan border: $progress%" }; override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit; override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit }) }
+        val borderColors = RadioGroup(this).apply { orientation = RadioGroup.HORIZONTAL }
+        val colorOptions = listOf("Putih" to "#FFFFFF", "Hitam" to "#000000", "Hijau" to "#00E676", "Ungu" to "#B388FF")
+        var selectedBorderColor = currentConfig.borderColor
+        colorOptions.forEach { (label, color) -> val radio = RadioButton(this).apply { id = View.generateViewId(); text = label; tag = color; setTextColor(Color.WHITE); isChecked = color.equals(currentConfig.borderColor, true) }; if (radio.isChecked) borderColors.check(radio.id); borderColors.addView(radio) }
+        borderColors.setOnCheckedChangeListener { group, checkedId -> selectedBorderColor = group.findViewById<RadioButton>(checkedId)?.tag as? String ?: "#FFFFFF" }
         val maskLabel = TextView(this).apply {
             text = "Bentuk mask"
             setTextColor(Color.WHITE)
@@ -842,8 +853,15 @@ class SceneEditorActivity : Activity() {
             addView(opacity)
             addView(cropLabel)
             addView(cropZoom)
+            addView(cropXLabel)
+            addView(cropX)
+            addView(cropYLabel)
+            addView(cropY)
             addView(maskLabel)
             addView(masks)
+            addView(borderLabel)
+            addView(border)
+            addView(borderColors)
         }
         AlertDialog.Builder(this)
             .setTitle("Edit gambar")
@@ -855,6 +873,10 @@ class SceneEditorActivity : Activity() {
                     put(StaticImageLayerConfig.KEY_FLIP_VERTICAL, flipVertical.isChecked.toString())
                     put(StaticImageLayerConfig.KEY_CROP_ZOOM, (1f + cropZoom.progress / 100f).toString())
                     put(StaticImageLayerConfig.KEY_MASK_SHAPE, selectedMask)
+                    put(StaticImageLayerConfig.KEY_CROP_OFFSET_X, ((cropX.progress - 100) / 100f).toString())
+                    put(StaticImageLayerConfig.KEY_CROP_OFFSET_Y, ((cropY.progress - 100) / 100f).toString())
+                    put(StaticImageLayerConfig.KEY_BORDER_WIDTH, (border.progress / 100f).toString())
+                    put(StaticImageLayerConfig.KEY_BORDER_COLOR, selectedBorderColor)
                 }
                 document = document.copy(layers = document.layers.map {
                     if (it.id == selected.id) it.copy(
@@ -864,7 +886,7 @@ class SceneEditorActivity : Activity() {
                 })
                 editor.setScene(document, selected.id)
                 streamService?.applySceneDocument(document)
-                statusView.text = "Crop dan mask gambar diterapkan."
+                statusView.text = "Crop, mask, dan border gambar diterapkan."
             }
             .setNegativeButton("Batal", null)
             .show()
