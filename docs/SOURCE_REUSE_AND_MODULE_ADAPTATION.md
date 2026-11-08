@@ -12,6 +12,29 @@ Ship the beta with its element set built into the APK while keeping every elemen
 - Libraries may provide a focused primitive (crop UI, image decoding, GIF decoding, gestures, drawing paths, sticker manipulation). OSS owns persistence, module identity, LIVE rendering, permissions, and the PixelLab/Streamingin workspace.
 - All bundled beta elements are registered through the core module registry. Later, the same implementations can be packaged as downloadable extensions without changing saved scene documents.
 
+## Beta scope freeze and proven-source-first policy
+
+For the current beta milestone, freeze feature expansion of the element implementations that already exist. Do not add new element types or rewrite their renderers unless a confirmed integration defect blocks the complete beta workflow.
+
+### Frozen element baseline
+
+- Text, static image/gallery, sticker, shape, GIF, video, and Share Screen remain at their current implementation/API boundary.
+- Preserve stable module IDs, serialized configuration keys, scene document compatibility, and existing renderer behavior.
+- Bug fixes are allowed only for reproducible defects or integration blockers; avoid cosmetic rewrites and speculative feature additions.
+- Defer camera source, audio source elements, browser/web widgets, automation triggers, and other new module types to later milestones.
+
+### Proven-source-first integration order
+
+1. Prefer components already present and exercised in OSS, especially RootEncoder 2.8.1 and Android platform APIs.
+2. Reuse mature upstream libraries only when the exact version, license, Android API compatibility, and integration surface can be verified. Do not add dependencies just to increase the dependency count.
+3. Where a source is not yet verified, isolate it behind an adapter and keep it out of the beta's critical path.
+4. Prioritize editor workspace behavior, per-element property editing, scene/template persistence, orientation adaptation, lifecycle safety, and editor-to-LIVE consistency over new element features.
+5. Keep audio/RTMP behavior unchanged; no refactor of the previously validated streaming/audio path as part of editor polish.
+
+### Completion gate
+
+The beta is ready for one combined user test only when the editor opens reliably, the canvas remains stable through portrait/landscape changes, bottom-dock module/property modes work without covering the canvas, saved scenes/templates persist, all frozen elements can be selected/configured/ordered, Share Screen remains a scene layer, and the same scene document reaches LIVE. CI build/unit tests are necessary but do not substitute for device validation.
+
 ## Candidate source components
 
 These are candidates for selective adoption, not automatic wholesale integration. Before adding a dependency or copying source, verify the exact release, Android API compatibility, transitive dependencies, maintenance state, and the license text for that version.
