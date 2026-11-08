@@ -169,7 +169,26 @@
               }
             }
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "image"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "then": {
+              "required": [
+                "asset"
+              ]
+            }
+          }
+        ]
       }
     },
     "properties": {
