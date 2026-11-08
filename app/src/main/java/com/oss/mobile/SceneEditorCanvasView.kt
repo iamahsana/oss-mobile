@@ -375,11 +375,11 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         return try {
             val file = SceneMediaAssetStorage.file(context, assetId) ?: return null
             val movie = file.inputStream().use { android.graphics.Movie.decodeStream(it) } ?: return null
-            val width = movie.width.coerceIn(1, 512)
-            val height = movie.height.coerceIn(1, 512)
+            val width = movie.width().coerceIn(1, 512)
+            val height = movie.height().coerceIn(1, 512)
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             val target = Canvas(bitmap)
-            target.scale(width.toFloat() / movie.width, height.toFloat() / movie.height)
+            target.scale(width.toFloat() / movie.width(), height.toFloat() / movie.height())
             movie.setTime(0)
             movie.draw(target, 0f, 0f)
             if (gifPreviewCache.size >= 4) {
