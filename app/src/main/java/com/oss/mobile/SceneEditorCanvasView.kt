@@ -208,7 +208,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             ?: return source
         val key = layer.id + ":" + layer.configuration.toSortedMap().toString()
         processedImageCache[key]?.let { if (!it.isRecycled) return it }
-        val processed = ImageLayerBitmapProcessor.process(source, config.cropZoom, config.maskShape)
+        val processed = ImageLayerBitmapProcessor.process(source, config.cropZoom, config.maskShape, config.cropOffsetX, config.cropOffsetY, config.borderWidth, config.borderColor)
         if (processed !== source) {
             if (processedImageCache.size >= 8) {
                 val eldest = processedImageCache.entries.first()
