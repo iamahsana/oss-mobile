@@ -85,8 +85,6 @@ class SceneDocumentCodecTest {
             SceneDocumentCodec.decode(ByteArray(2 * 1024 * 1024 + 1))
         }
     }
-}
-
 
     @Test
     fun preservesLayerGroupIdsAndSupportsLegacyDocumentsWithoutGroups() {
@@ -109,3 +107,4 @@ class SceneDocumentCodecTest {
             SceneLayer("a", "module.a", "A", 0, groupId = "../unsafe")
         }
     }
+}
