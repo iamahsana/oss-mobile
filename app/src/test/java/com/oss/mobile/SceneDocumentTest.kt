@@ -38,6 +38,23 @@ class SceneDocumentTest {
     }
 
     @Test
+    fun shareScreenIsAlwaysTheSingleBackgroundSource() {
+        val screen = SceneLayer(
+            id = "screen", moduleId = SceneScreenLayerConfig.MODULE_ID,
+            displayName = "Share Screen", zIndex = 100,
+            transform = SceneTransform(width = 1f, height = 1f)
+        )
+        val overlay = layer("overlay", z = -100)
+        val scene = SceneDocument("screen-scene", "Screen Scene", layers = listOf(overlay, screen))
+        assertEquals(listOf("screen", "overlay"), scene.renderOrder().map { it.id })
+        assertThrows(IllegalArgumentException::class.java) {
+            SceneDocument("duplicate-screen", "Duplicate", layers = listOf(
+                screen, screen.copy(id = "screen-two")
+            ))
+        }
+    }
+
+    @Test
     fun keepsGeometryIndependentOfCanvasPixelDimensions() {
         val transform = SceneTransform(x = 0.1f, y = 0.2f, width = 0.3f, height = 0.4f)
         val portrait = SceneDocument("p", "Portrait", SceneCanvas(720, 1280), listOf(layer("a", transform = transform)))
