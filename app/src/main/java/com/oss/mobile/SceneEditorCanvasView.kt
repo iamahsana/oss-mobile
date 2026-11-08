@@ -693,7 +693,11 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                 if (distance(event.x, event.y, downX, downY) > 2f * density) moved = true
                 when (gesture) {
                     Gesture.DRAG -> updateDraggedLayer(dx, dy, scale)
-                    Gesture.RESIZE -> updateResizedLayer(if (multiSelectEnabled && selectedLayerIds.size > 1) event.x - downX else dx, if (multiSelectEnabled && selectedLayerIds.size > 1) event.y - downY else dy, scale)
+                    Gesture.RESIZE -> {
+                        val isGroupTransform = transformSelectionIds().size > 1
+                        updateResizedLayer(if (isGroupTransform) event.x - downX else dx,
+                            if (isGroupTransform) event.y - downY else dy, scale)
+                    }
                     Gesture.ROTATE -> updateRotatedLayer(event.x, event.y, scale)
                     else -> Unit
                 }
