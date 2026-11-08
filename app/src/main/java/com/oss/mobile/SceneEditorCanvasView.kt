@@ -95,6 +95,19 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     private var multiStartBounds: SceneTransform? = null
     private var moved = false
 
+    // Editor viewport state only; this never mutates normalized scene geometry.
+    private var viewportZoom = 1f
+    private var viewportPanX = 0f
+    private var viewportPanY = 0f
+    private var viewportGestureActive = false
+    private var suppressSingleTouchUntilUp = false
+    private var pinchStartDistance = 1f
+    private var pinchStartMidX = 0f
+    private var pinchStartMidY = 0f
+    private var pinchStartZoom = 1f
+    private var pinchStartPanX = 0f
+    private var pinchStartPanY = 0f
+
     var onDocumentChanged: ((SceneDocument) -> Unit)? = null
     var onEditStarted: (() -> Unit)? = null
     var onSelectionChanged: ((SceneLayer?) -> Unit)? = null
@@ -468,14 +481,27 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             (width - 32f * density).coerceAtLeast(1f) / document.canvas.width,
             (height - 32f * density).coerceAtLeast(1f) / document.canvas.height
         )
-        return fit
+        return fit * viewportZoom
     }
 
     private fun canvasLeft(scale: Float): Float =
-        width / 2f - document.canvas.width * scale / 2f
+        width / 2f + viewportPanX - document.canvas.width * scale / 2f
 
     private fun canvasTop(scale: Float): Float =
-        height / 2f - document.canvas.height * scale / 2f
+        height / 2f + viewportPanY - document.canvas.height * scale / 2f
+
+    private fun pointerDistance(event: MotionEvent): Float {
+        if (event.pointerCount < 2) return 1f
+        val dx = event.getX(0) - event.getX(1)
+        val dy = event.getY(0) - event.getY(1)
+        return kotlin.math.sqrt(dx * dx + dy * dy).coerceAtLeast(1f)
+    }
+
+    private fun pointerMidX(event: MotionEvent): Float =
+        if (event.pointerCount < 2) event.x else (event.getX(0) + event.getX(1)) / 2f
+
+    private fun pointerMidY(event: MotionEvent): Float =
+        if (event.pointerCount < 2) event.y else (event.getY(0) + event.getY(1)) / 2f
 
     private fun viewToSceneX(x: Float, scale: Float): Float =
         ((x - canvasLeft(scale)) / scale) / document.canvas.width
@@ -500,6 +526,8 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         val scale = sceneScale()
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                viewportGestureActive = false
+                suppressSingleTouchUntilUp = false
                 downX = event.x
                 downY = event.y
                 lastX = event.x
@@ -559,8 +587,30 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                 }
                 return true
             }
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (event.pointerCount >= 2) {
+                    viewportGestureActive = true
+                    suppressSingleTouchUntilUp = true
+                    gesture = Gesture.NONE
+                    pinchStartDistance = pointerDistance(event)
+                    pinchStartMidX = pointerMidX(event)
+                    pinchStartMidY = pointerMidY(event)
+                    pinchStartZoom = viewportZoom
+                    pinchStartPanX = viewportPanX
+                    pinchStartPanY = viewportPanY
+                }
+                return true
+            }
             MotionEvent.ACTION_MOVE -> {
-                if (event.pointerCount > 1) return true
+                if (event.pointerCount >= 2 && viewportGestureActive) {
+                    val ratio = pointerDistance(event) / pinchStartDistance
+                    viewportZoom = (pinchStartZoom * ratio).coerceIn(1f, 4f)
+                    viewportPanX = pinchStartPanX + pointerMidX(event) - pinchStartMidX
+                    viewportPanY = pinchStartPanY + pointerMidY(event) - pinchStartMidY
+                    invalidate()
+                    return true
+                }
+                if (suppressSingleTouchUntilUp || event.pointerCount > 1) return true
                 val dx = event.x - lastX
                 val dy = event.y - lastY
                 if (distance(event.x, event.y, downX, downY) > 2f * density) moved = true
@@ -574,7 +624,13 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                 lastY = event.y
                 return true
             }
+            MotionEvent.ACTION_POINTER_UP -> {
+                viewportGestureActive = false
+                return true
+            }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                viewportGestureActive = false
+                suppressSingleTouchUntilUp = false
                 verticalGuide = null
                 horizontalGuide = null
                 invalidate()
