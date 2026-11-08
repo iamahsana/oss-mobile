@@ -270,12 +270,8 @@ class SceneEditorActivity : Activity() {
 
     private fun showSceneLibrary(templates: Boolean) {
         val saved = runCatching { repository.list() }.getOrDefault(emptyList())
-        val entries = if (templates) listOf(
-            "Kosong • 9:16",
-            "Gameplay • 9:16",
-            "Gameplay • 16:9",
-            "Kamera + teks • 9:16"
-        ) else saved.map { it.name }
+        val templateEntries = SceneTemplateCatalog.entries
+        val entries = if (templates) templateEntries.map { it.title } else saved.map { it.name }
         if (entries.isEmpty()) {
             Toast.makeText(this, "Belum ada scene tersimpan.", Toast.LENGTH_SHORT).show()
             return
@@ -284,17 +280,26 @@ class SceneEditorActivity : Activity() {
             .setTitle(if (templates) "Template scene" else "Scene tersimpan")
             .setItems(entries.toTypedArray()) { _, index ->
                 if (templates) {
-                    val canvas = if (index == 2) SceneCanvas(1280, 720) else SceneCanvas(720, 1280)
-                    val base = SceneDocument(id = document.id, name = entries[index], canvas = canvas)
                     checkpointHistory()
-                    document = base
-                    publishSceneEdit(null, "Template diterapkan.")
+                    document = SceneTemplateCatalog.create(templateEntries[index], document.id)
+                    history = SceneHistory(document)
+                    editor.setScene(document, null)
+                    titleView.text = document.name
+                    canvasSizeButton.text = canvasButtonLabel()
+                    updateHistoryButtons()
+                    streamService?.applySceneDocument(document)
+                    runCatching { repository.save(document) }
+                        .onSuccess { statusView.text = "Template diterapkan dan disimpan." }
+                        .onFailure { statusView.text = "Template diterapkan; gagal menyimpan: ${it.message}" }
+                    dockShowingProperties = false
+                    renderBottomDock()
                 } else {
                     val selected = saved[index]
                     document = selected
                     history = SceneHistory(document)
-                    editor.setScene(document)
+                    editor.setScene(document, null)
                     titleView.text = document.name
+                    canvasSizeButton.text = canvasButtonLabel()
                     updateHistoryButtons()
                     streamService?.applySceneDocument(document)
                     statusView.text = "Scene ${document.name} dibuka."
