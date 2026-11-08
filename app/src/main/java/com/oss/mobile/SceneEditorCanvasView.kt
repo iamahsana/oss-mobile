@@ -89,6 +89,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     private var moved = false
 
     var onDocumentChanged: ((SceneDocument) -> Unit)? = null
+    var onEditStarted: (() -> Unit)? = null
     var onSelectionChanged: ((SceneLayer?) -> Unit)? = null
 
     fun setScene(value: SceneDocument, selectedId: String? = selectedLayerId) {
@@ -369,6 +370,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                         }
                     }
                 }
+                if (gesture != Gesture.NONE) onEditStarted?.invoke()
                 startTransform = selectedLayer()?.transform
                 startPointerAngle = selectedLayer()?.let { pointerAngle(it, event.x, event.y, scale) } ?: 0f
                 startRotation = selectedLayer()?.transform?.rotationDegrees ?: 0f
