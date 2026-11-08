@@ -385,7 +385,6 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                     videoPreviewCache[assetId] = it
                 }
             }
-            val durationUs = ((cached?.let { 0L } ?: 0L) + 1L) // duration is read below from metadata
             val durationMs = preview.retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
                 ?.toLongOrNull()?.coerceAtLeast(1L) ?: 1L
             val timeMs = (now - preview.startedAt) % durationMs
@@ -454,6 +453,19 @@ class SceneEditorCanvasView(context: Context) : View(context) {
 
     private fun VideoPreview.copyBitmap(bitmap: Bitmap, frameAt: Long): VideoPreview =
         VideoPreview(retriever, bitmap, startedAt, frameAt)
+
+    override fun onDetachedFromWindow() {
+        videoPreviewCache.values.forEach { preview ->
+            runCatching { preview.retriever.release() }
+            if (!preview.bitmap.isRecycled) preview.bitmap.recycle()
+        }
+        videoPreviewCache.clear()
+        gifPreviewCache.values.forEach { preview ->
+            if (!preview.bitmap.isRecycled) preview.bitmap.recycle()
+        }
+        gifPreviewCache.clear()
+        super.onDetachedFromWindow()
+    }
 
     private fun stickerBitmap(layer: SceneLayer): Bitmap? {
         if (layer.moduleId != StickerLayerConfig.MODULE_ID) return null
