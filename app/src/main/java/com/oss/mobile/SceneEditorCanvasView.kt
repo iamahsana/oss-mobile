@@ -26,28 +26,28 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     private enum class Gesture { NONE, DRAG, RESIZE, ROTATE }
 
     private val density = resources.displayMetrics.density
-    private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(12, 20, 29) }
-    private val canvasPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(24, 37, 49) }
+    private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(238, 241, 246) }
+    private val canvasPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(255, 255, 255) }
     private val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(38, 190, 220, 238)
+        color = Color.argb(90, 160, 171, 190)
         strokeWidth = density
     }
     private val layerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(210, 52, 116, 145)
+        color = Color.argb(220, 70, 139, 184)
         style = Paint.Style.FILL
     }
     private val layerStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(133, 215, 239)
+        color = Color.rgb(91, 147, 196)
         style = Paint.Style.STROKE
         strokeWidth = 1.5f * density
     }
     private val selectedStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(88, 221, 255)
+        color = Color.rgb(31, 132, 220)
         style = Paint.Style.STROKE
         strokeWidth = 2f * density
     }
     private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
+        color = Color.rgb(43, 54, 72)
         textSize = 12f * density
         textAlign = Paint.Align.CENTER
     }
@@ -56,7 +56,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         style = Paint.Style.FILL
     }
     private val handleStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(24, 137, 171)
+        color = Color.rgb(31, 132, 220)
         style = Paint.Style.STROKE
         strokeWidth = 2f * density
     }
