@@ -513,33 +513,106 @@ class SceneEditorActivity : Activity() {
             .setTitle(if (templates) "Template scene" else "Scene tersimpan")
             .setItems(entries.toTypedArray()) { _, index ->
                 if (templates) {
+                    persistCurrentScene()
                     checkpointHistory()
                     document = SceneTemplateCatalog.create(templateEntries[index], document.id)
                     history = SceneHistory(document)
-                    editor.setScene(document, null)
-                    titleView.text = document.name
-                    canvasSizeButton.text = canvasButtonLabel()
-                    updateHistoryButtons()
-                    streamService?.applySceneDocument(document)
+                    applyOpenedScene("Template diterapkan dan disimpan.")
                     runCatching { repository.save(document) }
-                        .onSuccess { statusView.text = "Template diterapkan dan disimpan." }
                         .onFailure { statusView.text = "Template diterapkan; gagal menyimpan: ${it.message}" }
-                    dockShowingProperties = false
-                    renderBottomDock()
                 } else {
-                    val selected = saved[index]
-                    document = selected
-                    history = SceneHistory(document)
-                    editor.setScene(document, null)
-                    titleView.text = document.name
-                    canvasSizeButton.text = canvasButtonLabel()
-                    updateHistoryButtons()
-                    streamService?.applySceneDocument(document)
-                    statusView.text = "Scene ${document.name} dibuka."
-                    dockShowingProperties = false
-                    renderBottomDock()
+                    showSavedSceneActions(saved[index])
                 }
-            }.setNegativeButton("Tutup", null).show()
+            }
+            .setNegativeButton("Tutup", null)
+            .show()
+    }
+
+    private fun showSavedSceneActions(scene: SceneDocument) {
+        val actions = mutableListOf("Buka scene", "Ganti nama")
+        if (scene.id != document.id) actions += "Hapus scene"
+        AlertDialog.Builder(this)
+            .setTitle(scene.name)
+            .setItems(actions.toTypedArray()) { _, index ->
+                when (actions[index]) {
+                    "Buka scene" -> {
+                        persistCurrentScene()
+                        document = scene
+                        history = SceneHistory(document)
+                        applyOpenedScene("Scene ${document.name} dibuka.")
+                    }
+                    "Ganti nama" -> renameSavedScene(scene)
+                    "Hapus scene" -> confirmDeleteSavedScene(scene)
+                }
+            }
+            .setNegativeButton("Kembali") { _, _ -> showSceneLibrary(false) }
+            .show()
+    }
+
+    private fun renameSavedScene(scene: SceneDocument) {
+        val input = EditText(this).apply {
+            setText(scene.name)
+            selectAll()
+            hint = "Nama scene"
+            filters = arrayOf(android.text.InputFilter.LengthFilter(64))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Ganti nama scene")
+            .setView(input)
+            .setPositiveButton("Simpan") { _, _ ->
+                val name = input.text.toString().trim()
+                if (name.isBlank()) {
+                    Toast.makeText(this, "Nama scene tidak boleh kosong.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                val renamed = scene.copy(name = name)
+                runCatching { repository.save(renamed) }
+                    .onSuccess {
+                        if (document.id == scene.id) {
+                            document = renamed
+                            titleView.text = renamed.name
+                        }
+                        statusView.text = "Nama scene diperbarui."
+                    }
+                    .onFailure { statusView.text = "Gagal mengganti nama: ${it.message}" }
+            }
+            .setNegativeButton("Batal", null)
+            .show()
+    }
+
+    private fun confirmDeleteSavedScene(scene: SceneDocument) {
+        if (scene.id == document.id) {
+            Toast.makeText(this, "Scene yang sedang dibuka tidak dapat dihapus.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Hapus scene?")
+            .setMessage("Scene \"${scene.name}\" dan media yang tidak lagi dipakai akan dihapus dari perangkat.")
+            .setPositiveButton("Hapus") { _, _ ->
+                runCatching { repository.delete(scene.id) }
+                    .onSuccess { deleted ->
+                        statusView.text = if (deleted) "Scene dihapus." else "Scene tidak ditemukan."
+                    }
+                    .onFailure { statusView.text = "Gagal menghapus scene: ${it.message}" }
+            }
+            .setNegativeButton("Batal", null)
+            .show()
+    }
+
+    private fun persistCurrentScene() {
+        runCatching { repository.save(document) }
+            .onFailure { statusView.text = "Gagal menyimpan scene sebelumnya: ${it.message}" }
+    }
+
+    private fun applyOpenedScene(message: String) {
+        editor.setScene(document, null)
+        titleView.text = document.name
+        canvasSizeButton.text = canvasButtonLabel()
+        updateHistoryButtons()
+        streamService?.applySceneDocument(document)
+        statusView.text = message
+        dockShowingProperties = false
+        renderBottomDock()
     }
 
     private fun showAddSourceMenu() {
