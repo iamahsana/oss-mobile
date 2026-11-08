@@ -18,8 +18,11 @@ class SceneHistory(initial: SceneDocument, private val capacity: Int = 50) {
     }
 
     fun undo(current: SceneDocument): SceneDocument? {
-        if (undoStack.size <= 1) return null
-        if (undoStack.last() != current) record(current)
+        if (undoStack.isEmpty()) return null
+        if (undoStack.last() != current) {
+            redoStack += current
+            return undoStack.last()
+        }
         if (undoStack.size <= 1) return null
         redoStack += undoStack.removeAt(undoStack.lastIndex)
         return undoStack.last()
