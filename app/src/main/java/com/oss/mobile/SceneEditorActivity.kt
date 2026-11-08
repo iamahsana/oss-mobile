@@ -135,10 +135,15 @@ class SceneEditorActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
         }
+        firstRow.addView(makeButton("＋ Teks", 12) { showAddTextDialog() },
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(4) })
         firstRow.addView(makeButton("＋ Galeri", 12) { openImagePicker() },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(5) })
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                marginStart = dp(4)
+                marginEnd = dp(4)
+            })
         firstRow.addView(makeButton("Layers", 12) { showLayers() },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(5) })
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(4) })
         root.addView(firstRow)
 
         val secondRow = LinearLayout(this).apply {
@@ -237,6 +242,54 @@ class SceneEditorActivity : Activity() {
             statusView.text = "Canvas diubah, tetapi gagal menyimpan: ${error.message}"
         }
     }
+    private fun showAddTextDialog() {
+        val input = EditText(this).apply {
+            hint = "Tulis teks overlay"
+            setText("Teks baru")
+            minLines = 2
+            maxLines = 4
+            gravity = Gravity.TOP or Gravity.START
+            setPadding(dp(18), dp(12), dp(18), dp(12))
+        }
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(input, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Tambah layer teks")
+            .setView(container)
+            .setPositiveButton("Tambahkan") { _, _ ->
+                val value = input.text.toString().trim()
+                if (value.isBlank() || value.length > 500) {
+                    Toast.makeText(this, "Teks harus berisi 1–500 karakter.", Toast.LENGTH_LONG).show()
+                } else {
+                    addTextLayer(value)
+                }
+            }
+            .setNegativeButton("Batal", null)
+            .show()
+    }
+
+    private fun addTextLayer(value: String) {
+        val config = StaticTextLayerConfig(value)
+        val nextZ = (document.layers.maxOfOrNull { it.zIndex } ?: -1) + 1
+        val layer = SceneLayer(
+            id = "text_" + java.util.UUID.randomUUID().toString().replace("-", ""),
+            moduleId = StaticTextLayerConfig.MODULE_ID,
+            displayName = value.replace("\\n", " ").take(22).ifBlank { "Teks" },
+            zIndex = nextZ,
+            transform = SceneTransform(x = 0.10f, y = 0.12f, width = 0.72f, height = 0.18f),
+            configuration = config.toMap()
+        )
+        document = document.copy(layers = document.layers + layer)
+        editor.setScene(document, layer.id)
+        streamService?.applySceneDocument(document)
+        statusView.text = "Layer teks ditambahkan. Geser, ubah ukuran, atau putar."
+    }
+
     private fun openImagePicker() {
         val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
