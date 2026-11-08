@@ -177,7 +177,8 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             android.text.TextUtils.ellipsize(label, android.text.TextPaint(labelPaint), maxTextWidth,
                 android.text.TextUtils.TruncateAt.END).toString()
         } else label
-        if (image == null && rect.width() > 28f * density && rect.height() > 20f * density) {
+        if (image == null && textBitmap == null &&
+            rect.width() > 28f * density && rect.height() > 20f * density) {
             canvas.drawText(display, cx, cy + labelPaint.textSize * 0.35f, labelPaint)
         }
         canvas.restore()
