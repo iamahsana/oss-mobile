@@ -172,6 +172,16 @@ class SceneEditorActivity : Activity() {
             LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(3) })
         root.addView(firstRow)
 
+        val shapeRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        shapeRow.addView(makeButton("＋ Shape", 11) { showAddShapeDialog() },
+            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(5) })
+        shapeRow.addView(makeButton("Edit shape", 11) { editSelectedShape() },
+            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(5) })
+        root.addView(shapeRow)
+
         val secondRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -610,6 +620,182 @@ class SceneEditorActivity : Activity() {
                 editor.setScene(document, selected.id)
                 streamService?.applySceneDocument(document)
                 statusView.text = "Pengaturan teks diterapkan."
+            }
+            .setNegativeButton("Batal", null)
+            .show()
+    }
+
+    private fun showAddShapeDialog() {
+        val labels = arrayOf("Persegi panjang", "Lingkaran", "Garis")
+        val shapes = ShapeLayerConfig.Shape.values()
+        AlertDialog.Builder(this)
+            .setTitle("Tambah shape")
+            .setItems(labels) { _, index -> showShapeSettings(null, shapes[index]) }
+            .setNegativeButton("Batal", null)
+            .show()
+    }
+
+    private fun editSelectedShape() {
+        val selected = editor.selectedLayer() ?: return noSelection()
+        if (selected.moduleId != ShapeLayerConfig.MODULE_ID) {
+            Toast.makeText(this, "Pilih layer shape terlebih dahulu.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        showShapeSettings(selected, ShapeLayerConfig.from(selected.configuration).shape)
+    }
+
+    private fun showShapeSettings(existing: SceneLayer?, initialShape: ShapeLayerConfig.Shape) {
+        val current = existing?.let { ShapeLayerConfig.from(it.configuration) } ?: ShapeLayerConfig(shape = initialShape)
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+        }
+        val shapeLabel = TextView(this).apply { text = "Bentuk"; setTextColor(Color.WHITE) }
+        panel.addView(shapeLabel)
+        val shapeGroup = RadioGroup(this).apply { orientation = RadioGroup.HORIZONTAL }
+        val shapeOptions = listOf(
+            "Kotak" to ShapeLayerConfig.Shape.RECTANGLE,
+            "Lingkaran" to ShapeLayerConfig.Shape.CIRCLE,
+            "Garis" to ShapeLayerConfig.Shape.LINE
+        )
+        shapeOptions.forEach { (label, shape) ->
+            val radio = RadioButton(this).apply { id = View.generateViewId(); text = label; setTextColor(Color.WHITE) }
+            shapeGroup.addView(radio)
+            if (shape == current.shape) shapeGroup.check(radio.id)
+        }
+        panel.addView(shapeGroup)
+
+        val fillCheck = CheckBox(this).apply {
+            text = "Isi warna"
+            setTextColor(Color.WHITE)
+            isChecked = current.fillEnabled
+            isEnabled = current.shape != ShapeLayerConfig.Shape.LINE
+        }
+        panel.addView(fillCheck)
+
+        val colorLabel = TextView(this).apply { text = "Warna"; setTextColor(Color.WHITE); setPadding(0, dp(8), 0, dp(2)) }
+        panel.addView(colorLabel)
+        val colors = listOf(
+            "Cyan" to Color.rgb(65, 190, 225),
+            "Putih" to Color.WHITE,
+            "Kuning" to Color.rgb(255, 210, 70),
+            "Pink" to Color.rgb(255, 120, 185),
+            "Hijau" to Color.rgb(90, 220, 135),
+            "Ungu" to Color.rgb(160, 110, 235)
+        )
+        val colorGroup = RadioGroup(this).apply { orientation = RadioGroup.HORIZONTAL }
+        var selectedColor = current.fillColor
+        colors.forEach { (label, color) ->
+            val radio = RadioButton(this).apply { id = View.generateViewId(); text = label; textSize = 11f; setTextColor(color) }
+            colorGroup.addView(radio)
+            if (color == current.fillColor) colorGroup.check(radio.id)
+        }
+        colorGroup.setOnCheckedChangeListener { group, checkedId ->
+            selectedColor = colors.firstOrNull { (label, _) ->
+                (0 until group.childCount).any { i ->
+                    val child = group.getChildAt(i) as? RadioButton
+                    child?.id == checkedId && child.text.toString() == label
+                }
+            }?.second ?: selectedColor
+        }
+        panel.addView(colorGroup)
+
+        val borderLabel = TextView(this).apply {
+            text = "Ketebalan border: ${current.strokeWidth.toInt()}"
+            setTextColor(Color.WHITE)
+            setPadding(0, dp(8), 0, dp(2))
+        }
+        panel.addView(borderLabel)
+        val borderSeek = SeekBar(this).apply { max = 48; progress = current.strokeWidth.toInt() }
+        borderSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                borderLabel.text = "Ketebalan border: $progress"
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        panel.addView(borderSeek)
+
+        val radiusLabel = TextView(this).apply {
+            text = "Radius sudut: ${current.cornerRadius.toInt()}"
+            setTextColor(Color.WHITE)
+            setPadding(0, dp(8), 0, dp(2))
+        }
+        panel.addView(radiusLabel)
+        val radiusSeek = SeekBar(this).apply {
+            max = 100
+            progress = current.cornerRadius.toInt()
+            isEnabled = current.shape == ShapeLayerConfig.Shape.RECTANGLE
+        }
+        radiusSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                radiusLabel.text = "Radius sudut: $progress"
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        shapeGroup.setOnCheckedChangeListener { group, checkedId ->
+            val selectedShape = shapeOptions.firstOrNull { (label, _) ->
+                (0 until group.childCount).any { i ->
+                    val child = group.getChildAt(i) as? RadioButton
+                    child?.id == checkedId && child.text.toString() == label
+                }
+            }?.second ?: current.shape
+            fillCheck.isEnabled = selectedShape != ShapeLayerConfig.Shape.LINE
+            radiusSeek.isEnabled = selectedShape == ShapeLayerConfig.Shape.RECTANGLE
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(if (existing == null) "Pengaturan shape baru" else "Edit shape")
+            .setView(panel)
+            .setPositiveButton("Terapkan") { _, _ ->
+                val shape = shapeOptions.firstOrNull { (label, _) ->
+                    (0 until shapeGroup.childCount).any { i ->
+                        val child = shapeGroup.getChildAt(i) as? RadioButton
+                        child?.id == shapeGroup.checkedRadioButtonId && child.text.toString() == label
+                    }
+                }?.second ?: current.shape
+                val config = current.copy(
+                    shape = shape,
+                    fillEnabled = fillCheck.isChecked && shape != ShapeLayerConfig.Shape.LINE,
+                    fillColor = selectedColor,
+                    strokeColor = selectedColor,
+                    strokeWidth = borderSeek.progress.toFloat(),
+                    cornerRadius = radiusSeek.progress.toFloat()
+                )
+                if (existing == null) {
+                    val nextZ = (document.layers.maxOfOrNull { it.zIndex } ?: -1) + 1
+                    val isLine = shape == ShapeLayerConfig.Shape.LINE
+                    val isCircle = shape == ShapeLayerConfig.Shape.CIRCLE
+                    val layer = SceneLayer(
+                        id = "shape_" + java.util.UUID.randomUUID().toString().replace("-", ""),
+                        moduleId = ShapeLayerConfig.MODULE_ID,
+                        displayName = when (shape) {
+                            ShapeLayerConfig.Shape.RECTANGLE -> "Persegi"
+                            ShapeLayerConfig.Shape.CIRCLE -> "Lingkaran"
+                            ShapeLayerConfig.Shape.LINE -> "Garis"
+                        },
+                        zIndex = nextZ,
+                        transform = SceneTransform(
+                            x = if (isCircle) 0.34f else 0.12f,
+                            y = 0.28f,
+                            width = if (isLine) 0.68f else if (isCircle) 0.30f else 0.68f,
+                            height = if (isLine) 0.06f else if (isCircle) 0.30f else 0.30f
+                        ),
+                        configuration = config.toMap()
+                    )
+                    checkpointHistory()
+                    document = document.copy(layers = document.layers + layer)
+                    editor.setScene(document, layer.id)
+                } else {
+                    checkpointHistory()
+                    document = document.copy(layers = document.layers.map {
+                        if (it.id == existing.id) it.copy(configuration = config.toMap()) else it
+                    })
+                    editor.setScene(document, existing.id)
+                }
+                streamService?.applySceneDocument(document)
+                statusView.text = "Shape diterapkan. Geser, ubah ukuran, atau putar di canvas."
             }
             .setNegativeButton("Batal", null)
             .show()
