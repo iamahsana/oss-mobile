@@ -242,7 +242,114 @@ class SceneEditorActivity : Activity() {
             })
         root.addView(precisionRow)
 
+
+        val groupRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        groupRow.addView(makeButton("Kelompokkan", 11) { chooseLayersForGrouping() },
+            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(4) })
+        groupRow.addView(makeButton("Lepas grup", 11) { ungroupSelected() },
+            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(4) })
+        root.addView(groupRow)
+
+        val arrangeRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        arrangeRow.addView(makeButton("Ratakan posisi", 11) { arrangeSelectedLayers(false) },
+            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(4) })
+        arrangeRow.addView(makeButton("Sebar merata", 11) { arrangeSelectedLayers(true) },
+            LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(4) })
+        root.addView(arrangeRow)
+
         setContentView(root)
+    }
+
+
+    private fun chooseLayersForGrouping() {
+        val layers = document.layers
+        if (layers.size < 2) {
+            Toast.makeText(this, "Tambahkan minimal dua layer.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val selectedIds = linkedSetOf<String>()
+        editor.selectedLayer()?.id?.let(selectedIds::add)
+        AlertDialog.Builder(this)
+            .setTitle("Pilih layer yang akan dikelompokkan")
+            .setMultiChoiceItems(layers.map { it.displayName }.toTypedArray(),
+                BooleanArray(layers.size) { layers[it].id in selectedIds }) { _, which, checked ->
+                if (checked) selectedIds.add(layers[which].id) else selectedIds.remove(layers[which].id)
+            }
+            .setPositiveButton("Buat grup") { _, _ ->
+                if (selectedIds.size < 2) {
+                    Toast.makeText(this, "Pilih minimal dua layer.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                checkpointHistory()
+                val groupId = "grp_" + java.util.UUID.randomUUID().toString().replace("-", "")
+                document = SceneLayerOperations.group(document, selectedIds, groupId)
+                publishSceneEdit(selectedIds.first(), "Grup dibuat.")
+            }
+            .setNegativeButton("Batal", null)
+            .show()
+    }
+
+    private fun ungroupSelected() {
+        val groupId = editor.selectedLayer()?.groupId
+        if (groupId == null) {
+            Toast.makeText(this, "Layer ini belum tergabung dalam grup.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        checkpointHistory()
+        document = SceneLayerOperations.ungroup(document, groupId)
+        publishSceneEdit(editor.selectedLayer()?.id, "Grup dilepas.")
+    }
+
+    private fun arrangeSelectedLayers(distribute: Boolean) {
+        val layers = document.layers
+        val selectedIds = linkedSetOf<String>()
+        editor.selectedLayer()?.id?.let(selectedIds::add)
+        AlertDialog.Builder(this)
+            .setTitle(if (distribute) "Pilih layer untuk disebar" else "Pilih layer untuk diratakan")
+            .setMultiChoiceItems(layers.map { it.displayName }.toTypedArray(),
+                BooleanArray(layers.size) { layers[it].id in selectedIds }) { _, which, checked ->
+                if (checked) selectedIds.add(layers[which].id) else selectedIds.remove(layers[which].id)
+            }
+            .setPositiveButton("Lanjut") { _, _ ->
+                if (selectedIds.size < if (distribute) 3 else 2) {
+                    Toast.makeText(this, if (distribute) "Pilih minimal tiga layer." else "Pilih minimal dua layer.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                val choices = if (distribute) arrayOf("Horizontal", "Vertikal")
+                    else arrayOf("Kiri", "Tengah horizontal", "Kanan", "Atas", "Tengah vertikal", "Bawah")
+                AlertDialog.Builder(this)
+                    .setTitle(if (distribute) "Arah penyebaran" else "Sisi perataan")
+                    .setItems(choices) { _, choice ->
+                        checkpointHistory()
+                        document = if (distribute) {
+                            SceneLayerOperations.distribute(document, selectedIds,
+                                if (choice == 0) SceneLayerOperations.Axis.HORIZONTAL else SceneLayerOperations.Axis.VERTICAL)
+                        } else {
+                            SceneLayerOperations.align(document, selectedIds,
+                                SceneLayerOperations.Edge.values()[choice])
+                        }
+                        publishSceneEdit(editor.selectedLayer()?.id,
+                            if (distribute) "Layer disebar merata." else "Layer diratakan.")
+                    }
+                    .setNegativeButton("Batal", null)
+                    .show()
+            }
+            .setNegativeButton("Batal", null)
+            .show()
+    }
+
+    private fun publishSceneEdit(selectedId: String?, message: String) {
+        editor.setScene(document, selectedId)
+        streamService?.applySceneDocument(document)
+        runCatching { repository.save(document) }
+            .onSuccess { statusView.text = message }
+            .onFailure { statusView.text = "$message Gagal menyimpan: ${it.message}" }
     }
 
     private fun canvasButtonLabel(): String {
