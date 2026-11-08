@@ -237,6 +237,37 @@ class SceneEditorActivity : Activity() {
                         updateSelectedLayer { layer -> layer.copy(configuration =
                             StaticTextLayerConfig.from(layer.configuration).copy(underline = checked).toMap()) }
                     }
+                    addSeekProperty(items, "Outline", config.outlineWidth.toInt(), 12,
+                        onStart = { checkpointHistory() },
+                        onChange = { value -> updateSelectedLayer { layer ->
+                            layer.copy(configuration = StaticTextLayerConfig.from(layer.configuration)
+                                .copy(outlineWidth = value.toFloat()).toMap())
+                        } },
+                        onFinish = { finishPropertyChange() }
+                    )
+                    addPropertyToggle(items, "Shadow", config.shadow) { checked ->
+                        updateSelectedLayer { layer -> layer.copy(configuration =
+                            StaticTextLayerConfig.from(layer.configuration).copy(shadow = checked).toMap()) }
+                    }
+                    addPropertyToggle(items, "Background", config.backgroundEnabled) { checked ->
+                        updateSelectedLayer { layer -> layer.copy(configuration =
+                            StaticTextLayerConfig.from(layer.configuration).copy(backgroundEnabled = checked).toMap()) }
+                    }
+                    listOf("Putih" to Color.WHITE, "Kuning" to Color.YELLOW,
+                        "Cyan" to Color.CYAN, "Pink" to Color.MAGENTA).forEach { (label, color) ->
+                        addPropertyAction(items, label) {
+                            updateSelectedLayer { layer -> layer.copy(configuration =
+                                StaticTextLayerConfig.from(layer.configuration).copy(color = color).toMap()) }
+                        }
+                    }
+                    listOf("Kiri" to StaticTextLayerConfig.Alignment.LEFT,
+                        "Tengah" to StaticTextLayerConfig.Alignment.CENTER,
+                        "Kanan" to StaticTextLayerConfig.Alignment.RIGHT).forEach { (label, alignment) ->
+                        addPropertyAction(items, label) {
+                            updateSelectedLayer { layer -> layer.copy(configuration =
+                                StaticTextLayerConfig.from(layer.configuration).copy(alignment = alignment).toMap()) }
+                        }
+                    }
                     item("Detail teks") { editSelectedText() }
                 }
                 "oss.source.image.static" -> {
@@ -253,6 +284,28 @@ class SceneEditorActivity : Activity() {
                     }
                     addPropertyToggle(items, "Flip V", config.flipVertical) { checked ->
                         updateSelectedLayer { layer -> layer.copy(configuration = layer.configuration + (StaticImageLayerConfig.KEY_FLIP_VERTICAL to checked.toString())) }
+                    }
+                    addSeekProperty(items, "Crop X", ((config.cropOffsetX + 1f) * 100).toInt(), 200,
+                        onStart = { checkpointHistory() },
+                        onChange = { value -> updateSelectedLayer { layer ->
+                            layer.copy(configuration = layer.configuration + (StaticImageLayerConfig.KEY_CROP_OFFSET_X to ((value - 100) / 100f).toString()))
+                        } },
+                        onFinish = { finishPropertyChange() }
+                    )
+                    addSeekProperty(items, "Crop Y", ((config.cropOffsetY + 1f) * 100).toInt(), 200,
+                        onStart = { checkpointHistory() },
+                        onChange = { value -> updateSelectedLayer { layer ->
+                            layer.copy(configuration = layer.configuration + (StaticImageLayerConfig.KEY_CROP_OFFSET_Y to ((value - 100) / 100f).toString()))
+                        } },
+                        onFinish = { finishPropertyChange() }
+                    )
+                    listOf("Mask kotak" to StaticImageLayerConfig.MASK_RECTANGLE,
+                        "Mask bulat" to StaticImageLayerConfig.MASK_CIRCLE,
+                        "Mask rounded" to StaticImageLayerConfig.MASK_ROUNDED).forEach { (label, mask) ->
+                        addPropertyAction(items, label) {
+                            updateSelectedLayer { layer -> layer.copy(configuration =
+                                layer.configuration + (StaticImageLayerConfig.KEY_MASK_SHAPE to mask)) }
+                        }
                     }
                     item("Detail gambar") { editSelectedImage() }
                 }
@@ -277,6 +330,14 @@ class SceneEditorActivity : Activity() {
                     addPropertyToggle(items, "Isi warna", config.fillEnabled) { checked ->
                         updateSelectedLayer { layer -> layer.copy(configuration =
                             ShapeLayerConfig.from(layer.configuration).copy(fillEnabled = checked).toMap()) }
+                    }
+                    listOf("Cyan" to Color.rgb(65, 190, 225), "Putih" to Color.WHITE,
+                        "Kuning" to Color.YELLOW, "Pink" to Color.rgb(255, 120, 185),
+                        "Hijau" to Color.rgb(90, 220, 135), "Ungu" to Color.rgb(160, 110, 235)).forEach { (label, color) ->
+                        addPropertyAction(items, label) {
+                            updateSelectedLayer { layer -> layer.copy(configuration =
+                                ShapeLayerConfig.from(layer.configuration).copy(fillColor = color).toMap()) }
+                        }
                     }
                     item("Detail bentuk") { editSelectedShape() }
                 }
@@ -364,6 +425,22 @@ class SceneEditorActivity : Activity() {
             })
         })
         parent.addView(card, LinearLayout.LayoutParams(dp(148), dockItemHeight()).apply {
+            marginEnd = dp(5)
+        })
+    }
+
+    private fun addPropertyAction(
+        parent: LinearLayout,
+        label: String,
+        action: () -> Unit
+    ) {
+        val button = makeButton(label, 10) {
+            checkpointHistory()
+            action()
+            finishPropertyChange()
+            renderBottomDock()
+        }
+        parent.addView(button, LinearLayout.LayoutParams(dp(82), dockItemHeight()).apply {
             marginEnd = dp(5)
         })
     }
