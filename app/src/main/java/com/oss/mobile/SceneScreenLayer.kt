@@ -82,31 +82,58 @@ class SceneScreenCaptureFilterRender private constructor(
         val height = metrics.heightPixels.coerceAtLeast(2)
         val density = metrics.densityDpi.coerceAtLeast(1)
         val surface = Surface(texture)
-        surfaceRef.set(surface)
-        try {
-            val display = projection.createVirtualDisplay(
-                "OSS Scene Share Screen",
-                width,
-                height,
-                density,
-                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                surface,
-                null,
-                Handler(Looper.getMainLooper())
-            )
+        if (!surfaceRef.compareAndSet(null, surface)) {
+            surface.release()
+            return
+        }
+
+        // MediaProjection display creation is serialized on the main thread.
+        Handler(Looper.getMainLooper()).post {
             if (released.get()) {
-                display?.release()
-                surface.release()
-            } else if (display == null) {
-                surface.release()
-                surfaceRef.set(null)
-                throw IllegalStateException("Android tidak dapat membuat sumber Share Screen")
-            } else {
-                virtualDisplayRef.set(display)
+                surfaceRef.getAndSet(null)?.release()
+                return@post
             }
-        } catch (error: Exception) {
-            surfaceRef.getAndSet(null)?.release()
-            throw error
+            try {
+                val display = projection.createVirtualDisplay(
+                    "OSS Scene Share Screen",
+                    width,
+                    height,
+                    density,
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                    surface,
+                    null,
+                    Handler(Looper.getMainLooper())
+                )
+                if (display == null) {
+                    surfaceRef.getAndSet(null)?.release()
+                    OssDiagnostics.center.record(
+                        DiagnosticCategory.VIDEO,
+                        DiagnosticSeverity.ERROR,
+                        "SCREEN_SOURCE_CREATE_FAILED",
+                        "Android did not create the Share Screen virtual display"
+                    )
+                } else if (released.get()) {
+                    display.release()
+                    surfaceRef.getAndSet(null)?.release()
+                } else {
+                    virtualDisplayRef.set(display)
+                    OssDiagnostics.center.record(
+                        DiagnosticCategory.VIDEO,
+                        DiagnosticSeverity.INFO,
+                        "SCREEN_SOURCE_READY",
+                        "Share Screen attached as a scene source",
+                        mapOf("width" to width.toString(), "height" to height.toString())
+                    )
+                }
+            } catch (error: Exception) {
+                surfaceRef.getAndSet(null)?.release()
+                OssDiagnostics.center.record(
+                    DiagnosticCategory.VIDEO,
+                    DiagnosticSeverity.ERROR,
+                    "SCREEN_SOURCE_CREATE_FAILED",
+                    error.javaClass.simpleName + ": " + (error.message ?: "unknown")
+                )
+            }
         }
     }
 
