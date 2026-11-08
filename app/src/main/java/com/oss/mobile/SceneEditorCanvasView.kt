@@ -417,9 +417,12 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         return try {
             val preview = cached ?: run {
                 val file = SceneMediaAssetStorage.file(context, assetId) ?: return null
+                if (file.length() > SceneGifLayerConfig.MAX_GIF_BYTES) return null
                 val movie = file.inputStream().use { android.graphics.Movie.decodeStream(it) } ?: return null
-                val width = movie.width().coerceIn(1, 512)
-                val height = movie.height().coerceIn(1, 512)
+                if (movie.width() !in 1..SceneGifLayerConfig.MAX_DIMENSION ||
+                    movie.height() !in 1..SceneGifLayerConfig.MAX_DIMENSION) return null
+                val width = movie.width()
+                val height = movie.height()
                 val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                 GifPreview(movie, bitmap, now, 0L).also {
                     if (gifPreviewCache.size >= 4) {
