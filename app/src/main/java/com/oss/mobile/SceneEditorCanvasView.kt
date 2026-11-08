@@ -114,12 +114,16 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     var onEditStarted: (() -> Unit)? = null
     var onSelectionChanged: ((SceneLayer?) -> Unit)? = null
 
-    fun setScene(value: SceneDocument, selectedId: String? = selectedLayerId) {
+    fun setScene(
+        value: SceneDocument,
+        selectedId: String? = selectedLayerId,
+        notifySelection: Boolean = true
+    ) {
         document = value
         selectedLayerId = selectedId?.takeIf { id -> value.layers.any { it.id == id } }
         selectedLayerIds.retainAll(value.layers.map { it.id }.toSet())
         selectedLayerId?.let(selectedLayerIds::add)
-        onSelectionChanged?.invoke(selectedLayer())
+        if (notifySelection) onSelectionChanged?.invoke(selectedLayer())
         invalidate()
     }
 
