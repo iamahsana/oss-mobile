@@ -1,0 +1,46 @@
+{
+  "manifestVersion": 1,
+  "id": "community.example.stream-label",
+  "name": "Stream Label",
+  "description": "A simple editable title label made from OSS built-in primitives.",
+  "version": "1.0.0",
+  "minCoreApi": 1,
+  "publisher": {
+    "id": "example-community",
+    "displayName": "Example Community"
+  },
+  "license": "CC0-1.0",
+  "kind": "overlay",
+  "capabilities": ["visual.render", "property.controls"],
+  "permissions": [],
+  "elements": [
+    {
+      "key": "title",
+      "type": "text",
+      "default": "LIVE NOW",
+      "transform": { "x": 0.08, "y": 0.06, "width": 0.84, "height": 0.1, "opacity": 1 }
+    },
+    {
+      "key": "panel",
+      "type": "shape",
+      "default": { "shape": "rectangle", "fill": "#CC101820", "radius": 16 },
+      "transform": { "x": 0.05, "y": 0.04, "width": 0.9, "height": 0.14, "opacity": 1 }
+    }
+  ],
+  "properties": [
+    {
+      "key": "title_text",
+      "label": "Judul",
+      "control": "text",
+      "target": "elements.title.default"
+    },
+    {
+      "key": "panel_opacity",
+      "label": "Transparansi panel",
+      "control": "number",
+      "target": "elements.panel.transform.opacity",
+      "min": 0,
+      "max": 1
+    }
+  ]
+}
