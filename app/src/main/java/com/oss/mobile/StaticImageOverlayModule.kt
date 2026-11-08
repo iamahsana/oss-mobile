@@ -3,6 +3,7 @@ package com.oss.mobile
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Matrix
 import com.pedro.encoder.input.gl.render.filters.BaseFilterRender
 
 /** Static image source supporting packaged resources and private imported media. */
@@ -41,8 +42,18 @@ class StaticImageOverlayModule : OverlaySourceModule {
             }
         }
 
+        val renderBitmap = if (config.flipHorizontal || config.flipVertical) {
+            val matrix = Matrix().apply {
+                setScale(
+                    if (config.flipHorizontal) -1f else 1f,
+                    if (config.flipVertical) -1f else 1f
+                )
+            }
+            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        } else bitmap
+
         val renderer = SceneImageFilterRender()
-        renderer.setImage(bitmap)
+        renderer.setImage(renderBitmap)
         val canvasAspect = 720f / 1280f
         val imageAspect = bitmap.width.toFloat() / bitmap.height.toFloat()
         val heightPercent = (config.widthPercent * canvasAspect / imageAspect).coerceAtMost(100f)
