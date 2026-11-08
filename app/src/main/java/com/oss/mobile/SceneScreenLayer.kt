@@ -35,10 +35,15 @@ data class SceneScreenLayerConfig(
     }
 }
 
-class SceneScreenCaptureFilterRender(
+class SceneScreenCaptureFilterRender private constructor(
     private val appContext: Context,
-    private val projection: MediaProjection
-) : SurfaceFilterRender({ texture -> }) , SceneTransformTarget {
+    private val projection: MediaProjection,
+    private val surfaceReady: AtomicReference<((SurfaceTexture) -> Unit)?>
+) : SurfaceFilterRender({ texture -> surfaceReady.get()?.invoke(texture) }), SceneTransformTarget {
+
+    constructor(context: Context, projection: MediaProjection) : this(
+        context.applicationContext, projection, AtomicReference(null)
+    )
 
     private val surfaceRef = AtomicReference<Surface?>(null)
     private val virtualDisplayRef = AtomicReference<VirtualDisplay?>(null)
@@ -47,8 +52,7 @@ class SceneScreenCaptureFilterRender(
     private var appliedTransform: RootEncoderSpriteTransform? = null
 
     init {
-        // SurfaceFilterRender creates its SurfaceTexture on the GL thread. The callback
-        // is installed through the inherited surface listener in initSurface below.
+        surfaceReady.set(::attachCaptureSurface)
     }
 
     override fun updateSceneTransform(transform: SceneTransform) {
