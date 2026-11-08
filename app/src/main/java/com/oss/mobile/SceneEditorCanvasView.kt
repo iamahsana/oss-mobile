@@ -168,7 +168,14 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         val textBitmap = textBitmap(layer)
         if (image != null && layer.moduleId == "oss.source.image.static") {
             imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
+            val flipX = layer.configuration[StaticImageLayerConfig.KEY_FLIP_HORIZONTAL]?.toBooleanStrictOrNull() == true
+            val flipY = layer.configuration[StaticImageLayerConfig.KEY_FLIP_VERTICAL]?.toBooleanStrictOrNull() == true
+            canvas.save()
+            if (flipX || flipY) {
+                canvas.scale(if (flipX) -1f else 1f, if (flipY) -1f else 1f, cx, cy)
+            }
             canvas.drawBitmap(image, null, rect, imagePaint)
+            canvas.restore()
             imagePaint.alpha = 255
         } else if (textBitmap != null) {
             imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
