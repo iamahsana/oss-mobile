@@ -263,12 +263,17 @@ class SceneEditorActivity : Activity() {
                 runCatching {
                     val config = TextLayerConfig(value, Color.WHITE, 128f)
                     val nextZ = (document.layers.maxOfOrNull { it.zIndex } ?: -1) + 1
+                    val bitmap = TextLayerBitmapFactory.create(config)
+                    val aspect = bitmap.width.toFloat() / bitmap.height.toFloat()
+                    bitmap.recycle()
+                    val layerWidth = 0.76f
+                    val layerHeight = (layerWidth * document.canvas.width / document.canvas.height / aspect).coerceIn(0.03f, 1.5f)
                     val layer = SceneLayer(
                         id = "text_" + java.util.UUID.randomUUID().toString().replace("-", ""),
                         moduleId = TextLayerConfig.MODULE_ID,
                         displayName = value.take(24),
                         zIndex = nextZ,
-                        transform = SceneTransform(x = 0.12f, y = 0.18f, width = 0.76f, height = 0.16f),
+                        transform = SceneTransform(x = 0.12f, y = 0.18f, width = layerWidth, height = layerHeight),
                         configuration = config.toMap()
                     )
                     document = document.copy(layers = document.layers + layer)
