@@ -38,7 +38,59 @@ class OverlayCompositor(
             .filter { it.enabled }
             .sortedWith(compareBy<CompositorLayer> { it.zIndex }.thenBy { it.id })
 
-        // Remove only renderers previously registered by this compositor.
+        val current = attachedLayers.map { it.key to it.value }
+        val desired = orderedLayers.map { it.id to it.renderer }
+        val appendDelta = compositorAppendDelta(current, desired)
+
+        if (appendDelta != null) {
+            // Unchanged scenes become a no-op; adding a topmost layer appends only that filter.
+            appendDelta.forEach { (id, renderer) ->
+                glInterface.addFilter(renderer)
+                attachedLayers[id] = renderer
+            }
+            return
+        }
+
+        // The MediaProjection source owns the session's single VirtualDisplay.
+        // Keep that filter attached while rebuilding/reordering overlay layers; removing it
+        // would release its GL SurfaceTexture and Android 14+ will not allow a second
+        // VirtualDisplay for the same MediaProjection session.
+        val currentScreen = current.firstOrNull { it.first == SceneScreenLayerConfig.MODULE_ID }
+        val desiredScreen = desired.firstOrNull { it.first == SceneScreenLayerConfig.MODULE_ID }
+        if (currentScreen != null && desiredScreen != null &&
+            currentScreen.second === desiredScreen.second) {
+            val currentOverlays = current.filter { it.first != SceneScreenLayerConfig.MODULE_ID }
+            val desiredOverlays = orderedLayers.filter { it.id != SceneScreenLayerConfig.MODULE_ID }
+            var stablePrefix = 0
+            while (stablePrefix < currentOverlays.size && stablePrefix < desiredOverlays.size &&
+                currentOverlays[stablePrefix].first == desiredOverlays[stablePrefix].id &&
+                currentOverlays[stablePrefix].second === desiredOverlays[stablePrefix].renderer) {
+                stablePrefix++
+            }
+            currentOverlays.drop(stablePrefix).asReversed().forEach { (_, renderer) ->
+                glInterface.removeFilter(renderer)
+            }
+            attachedLayers.clear()
+            attachedLayers[SceneScreenLayerConfig.MODULE_ID] = currentScreen.second
+            currentOverlays.take(stablePrefix).forEach { (id, renderer) ->
+                attachedLayers[id] = renderer
+            }
+            desiredOverlays.drop(stablePrefix).forEach { layer ->
+                glInterface.addFilter(layer.renderer)
+                attachedLayers[layer.id] = layer.renderer
+            }
+            return
+        }
+
+        // RootEncoder releases a filter when it is removed. Re-adding that same instance
+        // would reuse a released GL renderer, so structural rebuilds require fresh instances.
+        val reusesReleasedRenderer = compositorHasRendererOverlap(current, desired)
+        require(!reusesReleasedRenderer) {
+            "Structural scene changes require fresh renderer instances for every attached layer"
+        }
+
+        // Removal, replacement, or z-order changes require an ordered rebuild.
+        // Only renderers owned by this compositor are touched.
         attachedLayers.values.forEach { renderer ->
             glInterface.removeFilter(renderer)
         }

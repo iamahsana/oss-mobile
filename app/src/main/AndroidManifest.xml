@@ -15,6 +15,11 @@
         android:theme="@android:style/Theme.Material.NoActionBar">
 
         <activity
+            android:name=".SceneEditorActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
+        <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
