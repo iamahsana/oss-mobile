@@ -48,14 +48,15 @@ object SceneTemplateCatalog {
                     width = 0.84f,
                     height = 0.09f
                 ),
-                configuration = StaticTextLayerConfig(
-                    text = "LIVE STREAM",
-                    textSize = 64f,
-                    bold = true,
-                    alignment = StaticTextLayerConfig.Alignment.CENTER,
-                    outlineWidth = 3f,
-                    shadow = true
-                ).toMap()
+                configuration = mapOf(
+                    StaticTextLayerConfig.KEY_TEXT to "LIVE STREAM",
+                    StaticTextLayerConfig.KEY_COLOR to "#FFFFFFFF",
+                    StaticTextLayerConfig.KEY_SIZE to "64.0",
+                    StaticTextLayerConfig.KEY_BOLD to "true",
+                    StaticTextLayerConfig.KEY_ALIGNMENT to "CENTER",
+                    StaticTextLayerConfig.KEY_OUTLINE_WIDTH to "3.0",
+                    StaticTextLayerConfig.KEY_SHADOW to "true"
+                )
             )
         }
         return SceneDocument(
