@@ -66,6 +66,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     }
     private val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val imageCache = SparseArray<Bitmap>()
+    private val importedImageCache = linkedMapOf<String, Bitmap>()
 
     private var document = SceneDocument(id = "editor", name = "Scene")
     private var selectedLayerId: String? = null
@@ -152,7 +153,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         val cy = rect.centerY()
         canvas.save()
         canvas.rotate(layer.transform.rotationDegrees, cx, cy)
-        val image = layer.configuration["resource_id"]?.toIntOrNull()?.let(::imageBitmap)
+        val image = imageBitmap(layer)
         if (image != null && layer.moduleId == "oss.source.image.static") {
             imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
             canvas.drawBitmap(image, null, rect, imagePaint)
@@ -194,6 +195,27 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         } catch (_: Exception) {
             null
         }
+    }
+
+    private fun imageBitmap(layer: SceneLayer): Bitmap? {
+        if (layer.moduleId != "oss.source.image.static") return null
+        val importedId = layer.configuration["image_file_id"]
+        if (importedId != null) {
+            importedImageCache[importedId]?.let { if (!it.isRecycled) return it }
+            return try {
+                val bitmap = SceneImageStorage.decode(context, importedId, 640) ?: return null
+                if (importedImageCache.size >= 4) {
+                    val eldest = importedImageCache.entries.first()
+                    importedImageCache.remove(eldest.key)
+                    if (!eldest.value.isRecycled) eldest.value.recycle()
+                }
+                importedImageCache[importedId] = bitmap
+                bitmap
+            } catch (_: Exception) {
+                null
+            }
+        }
+        return layer.configuration["resource_id"]?.toIntOrNull()?.let(::imageBitmap)
     }
 
     private fun drawHandles(canvas: Canvas, layer: SceneLayer, left: Float, top: Float, scale: Float) {

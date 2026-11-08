@@ -5,17 +5,17 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import com.pedro.encoder.input.gl.render.filters.BaseFilterRender
 
-/**
- * First concrete visual source module. It deliberately supports app resources only:
- * user-selected media permissions and URI lifecycle will be added in a later source module.
- */
+/** Static image source supporting packaged resources and private imported media. */
 class StaticImageOverlayModule : OverlaySourceModule {
     override val descriptor = OverlayModuleDescriptor(
         id = "oss.source.image.static",
         displayName = "Static Image",
-        version = "1.0.0",
+        version = "1.1.0",
         minimumCoreApi = OverlayModuleApi.CURRENT_VERSION,
-        capabilities = setOf(OverlayModuleCapability.RENDER_VISUAL)
+        capabilities = setOf(
+            OverlayModuleCapability.RENDER_VISUAL,
+            OverlayModuleCapability.READ_SELECTED_MEDIA
+        )
     )
 
     override fun createRenderer(
@@ -23,14 +23,22 @@ class StaticImageOverlayModule : OverlaySourceModule {
         configuration: Map<String, String>
     ): BaseFilterRender {
         val config = StaticImageLayerConfig.from(configuration)
-        val drawable = context.getDrawable(config.resourceId)
-            ?: throw IllegalArgumentException("Image resource not found: ${config.resourceId}")
-        val intrinsicWidth = drawable.intrinsicWidth.takeIf { it > 0 } ?: 256
-        val intrinsicHeight = drawable.intrinsicHeight.takeIf { it > 0 } ?: 256
-        val bitmap = Bitmap.createBitmap(intrinsicWidth, intrinsicHeight, Bitmap.Config.ARGB_8888)
-        Canvas(bitmap).also { canvas ->
-            drawable.setBounds(0, 0, canvas.width, canvas.height)
-            drawable.draw(canvas)
+        val bitmap = if (config.imageFileId != null) {
+            SceneImageStorage.decode(context, config.imageFileId, 2048)
+                ?: throw IllegalArgumentException("Gambar yang diimpor tidak ditemukan atau rusak")
+        } else {
+            val drawable = context.getDrawable(config.resourceId)
+                ?: throw IllegalArgumentException("Image resource not found: ${config.resourceId}")
+            val intrinsicWidth = drawable.intrinsicWidth.takeIf { it > 0 } ?: 256
+            val intrinsicHeight = drawable.intrinsicHeight.takeIf { it > 0 } ?: 256
+            require(intrinsicWidth.toLong() * intrinsicHeight <= 4_194_304L) {
+                "Image resource exceeds the renderer pixel limit"
+            }
+            Bitmap.createBitmap(intrinsicWidth, intrinsicHeight, Bitmap.Config.ARGB_8888).also {
+                val canvas = Canvas(it)
+                drawable.setBounds(0, 0, canvas.width, canvas.height)
+                drawable.draw(canvas)
+            }
         }
 
         val renderer = SceneImageFilterRender()
