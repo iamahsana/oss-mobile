@@ -11,10 +11,12 @@ class SceneHistory(initial: SceneDocument, private val capacity: Int = 50) {
     init { require(capacity >= 2) }
 
     fun record(document: SceneDocument) {
+        // Starting a new edit after undo invalidates the redo branch, even if
+        // the checkpoint equals the current top snapshot.
+        redoStack.clear()
         if (undoStack.lastOrNull() == document) return
         undoStack += document
         if (undoStack.size > capacity) undoStack.removeAt(0)
-        redoStack.clear()
     }
 
     fun undo(current: SceneDocument): SceneDocument? {
