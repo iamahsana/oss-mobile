@@ -1477,11 +1477,11 @@ class SceneEditorActivity : Activity() {
             text = label
             isAllCaps = false
             this.textSize = textSize.toFloat()
-            setTextColor(Color.WHITE)
+            setTextColor(Color.rgb(43, 54, 72))
             background = GradientDrawable().apply {
-                setColor(Color.rgb(27, 47, 62))
+                setColor(Color.rgb(247, 248, 251))
                 cornerRadius = dp(12).toFloat()
-                setStroke(dp(1), Color.rgb(48, 76, 96))
+                setStroke(dp(1), Color.rgb(220, 224, 232))
             }
             setPadding(dp(8), 0, dp(8), 0)
             setOnClickListener { action() }
