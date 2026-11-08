@@ -156,7 +156,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         canvas.restore()
 
         canvas.drawRoundRect(outputRect, 8f * density, 8f * density, layerStroke)
-        selectedLayer()?.let { drawHandles(canvas, it, left, top, scale) }
+        selectionHandleLayer()?.let { drawHandles(canvas, it, left, top, scale) }
     }
 
     private fun drawGrid(canvas: Canvas, rect: RectF) {
@@ -509,7 +509,8 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                 lastY = event.y
                 moved = false
                 val selected = selectedLayer()
-                val points = selected?.let {
+                val handleLayer = selectionHandleLayer()
+                val points = handleLayer?.let {
                     handlePoints(it, canvasLeft(scale), canvasTop(scale), scale)
                 }
                 val radius = 18f * density
@@ -541,8 +542,8 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                 }
                 if (gesture != Gesture.NONE) onEditStarted?.invoke()
                 startTransform = selectedLayer()?.transform
-                startPointerAngle = selectedLayer()?.let { pointerAngle(it, event.x, event.y, scale) } ?: 0f
-                startRotation = selectedLayer()?.transform?.rotationDegrees ?: 0f
+                startPointerAngle = handleLayer?.let { pointerAngle(it, event.x, event.y, scale) } ?: 0f
+                startRotation = if (multiSelectEnabled && selectedLayerIds.size > 1) 0f else selectedLayer()?.transform?.rotationDegrees ?: 0f
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
@@ -571,6 +572,26 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             }
         }
         return true
+    }
+
+    private fun selectionHandleLayer(): SceneLayer? {
+        val selected = if (multiSelectEnabled && selectedLayerIds.size > 1) {
+            document.layers.filter { it.id in selectedLayerIds }
+        } else listOfNotNull(selectedLayer())
+        if (selected.isEmpty()) return null
+        if (selected.size == 1) return selected.first()
+        val left = selected.minOf { it.transform.x }
+        val top = selected.minOf { it.transform.y }
+        val right = selected.maxOf { it.transform.x + it.transform.width }
+        val bottom = selected.maxOf { it.transform.y + it.transform.height }
+        val primary = selectedLayer() ?: selected.first()
+        return primary.copy(transform = SceneTransform(
+            x = left, y = top,
+            width = (right - left).coerceIn(0.03f, 2f),
+            height = (bottom - top).coerceIn(0.03f, 2f),
+            rotationDegrees = 0f,
+            opacity = 1f
+        ))
     }
 
     private fun updateDraggedLayer(dx: Float, dy: Float, scale: Float) {
@@ -632,6 +653,27 @@ class SceneEditorCanvasView(context: Context) : View(context) {
 
     private fun updateResizedLayer(dx: Float, dy: Float, scale: Float) {
         val layer = selectedLayer() ?: return
+        if (multiSelectEnabled && selectedLayerIds.size > 1) {
+            val bounds = selectionHandleLayer()?.transform ?: return
+            val width = (bounds.width + dx / (scale * document.canvas.width)).coerceIn(0.03f, 2f)
+            val height = (bounds.height + dy / (scale * document.canvas.height)).coerceIn(0.03f, 2f)
+            val scaleX = width / bounds.width
+            val scaleY = height / bounds.height
+            document = document.copy(layers = document.layers.map { item ->
+                if (item.id in selectedLayerIds && !item.locked) {
+                    val t = item.transform
+                    item.copy(transform = t.copy(
+                        x = bounds.x + (t.x - bounds.x) * scaleX,
+                        y = bounds.y + (t.y - bounds.y) * scaleY,
+                        width = (t.width * scaleX).coerceIn(0.03f, 2f),
+                        height = (t.height * scaleY).coerceIn(0.03f, 2f)
+                    ))
+                } else item
+            })
+            onDocumentChanged?.invoke(document)
+            invalidate()
+            return
+        }
         val old = layer.transform
         val angle = Math.toRadians(-old.rotationDegrees.toDouble())
         val localDx = (dx * cos(angle) - dy * sin(angle)).toFloat()
@@ -645,11 +687,38 @@ class SceneEditorCanvasView(context: Context) : View(context) {
 
     private fun updateRotatedLayer(x: Float, y: Float, scale: Float) {
         val layer = selectedLayer() ?: return
-        val currentAngle = pointerAngle(layer, x, y, scale)
-        var rotation = startRotation + currentAngle - startPointerAngle
-        while (rotation > 180f) rotation -= 360f
-        while (rotation < -180f) rotation += 360f
-        updateLayerTransform(layer.id, layer.transform.copy(rotationDegrees = rotation.coerceIn(-360f, 360f)))
+        val target = selectionHandleLayer() ?: layer
+        val currentAngle = pointerAngle(target, x, y, scale)
+        var delta = currentAngle - startPointerAngle
+        while (delta > 180f) delta -= 360f
+        while (delta < -180f) delta += 360f
+        if (multiSelectEnabled && selectedLayerIds.size > 1) {
+            val bounds = target.transform
+            val cx = bounds.x + bounds.width / 2f
+            val cy = bounds.y + bounds.height / 2f
+            val radians = Math.toRadians(delta.toDouble())
+            document = document.copy(layers = document.layers.map { item ->
+                if (item.id in selectedLayerIds && !item.locked) {
+                    val t = item.transform
+                    val itemCx = t.x + t.width / 2f - cx
+                    val itemCy = t.y + t.height / 2f - cy
+                    val rotatedX = (itemCx * cos(radians) - itemCy * sin(radians)).toFloat() + cx
+                    val rotatedY = (itemCx * sin(radians) + itemCy * cos(radians)).toFloat() + cy
+                    item.copy(transform = t.copy(
+                        x = rotatedX - t.width / 2f,
+                        y = rotatedY - t.height / 2f,
+                        rotationDegrees = (t.rotationDegrees + delta).coerceIn(-360f, 360f)
+                    ))
+                } else item
+            })
+            onDocumentChanged?.invoke(document)
+            invalidate()
+        } else {
+            var rotation = startRotation + delta
+            while (rotation > 180f) rotation -= 360f
+            while (rotation < -180f) rotation += 360f
+            updateLayerTransform(layer.id, layer.transform.copy(rotationDegrees = rotation.coerceIn(-360f, 360f)))
+        }
     }
 
     private fun pointerAngle(layer: SceneLayer, x: Float, y: Float, scale: Float): Float {
