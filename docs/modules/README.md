@@ -34,6 +34,10 @@ A module's property controls map only to a declared element's `default` value or
 - Keep a missing module's scene layer as an unavailable placeholder; never silently delete user content.
 - Native executable extensions, if ever supported, require a separate reviewed/signed execution model and must not be treated as ordinary declarative modules.
 
+## Creator guide
+
+See [CREATOR_GUIDE.md](CREATOR_GUIDE.md) for a step-by-step manifest, coordinate, compatibility, and security guide.
+
 ## Example
 
 See `examples/stream-label/manifest.json`. This example is a format demonstration, not an installable module for the current beta.
