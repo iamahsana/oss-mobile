@@ -150,7 +150,7 @@ class SceneEditorActivity : Activity() {
         // Persistent bottom dock: a separate surface below the canvas, not an overlay.
         val dock = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = roundedBackground(Color.WHITE, 16)
+            background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(16).toFloat(); setStroke(dp(1), Color.rgb(225, 228, 235) }
             setPadding(dp(9), dp(8), dp(9), dp(8))
         }
         val dockTitle = TextView(this).apply {
