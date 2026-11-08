@@ -51,6 +51,36 @@ class StaticImageLayerConfigTest {
     }
 
     @Test
+    fun parsesCropZoomAndMaskWithSafeDefaults() {
+        val defaults = StaticImageLayerConfig.from(mapOf("resource_id" to "9"))
+        assertEquals(1f, defaults.cropZoom)
+        assertEquals(StaticImageLayerConfig.MASK_RECTANGLE, defaults.maskShape)
+
+        val edited = StaticImageLayerConfig.from(
+            mapOf(
+                "resource_id" to "9",
+                "crop_zoom" to "2.25",
+                "mask_shape" to StaticImageLayerConfig.MASK_CIRCLE
+            )
+        )
+        assertEquals(2.25f, edited.cropZoom)
+        assertEquals(StaticImageLayerConfig.MASK_CIRCLE, edited.maskShape)
+    }
+
+    @Test
+    fun rejectsInvalidCropZoomAndMaskShape() {
+        assertThrows(IllegalArgumentException::class.java) {
+            StaticImageLayerConfig.from(mapOf("resource_id" to "9", "crop_zoom" to "3.5"))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            StaticImageLayerConfig(
+                resourceId = 9,
+                maskShape = "triangle"
+            )
+        }
+    }
+
+    @Test
     fun rejectsMissingResourceId() {
         assertThrows(IllegalArgumentException::class.java) {
             StaticImageLayerConfig.from(emptyMap())
