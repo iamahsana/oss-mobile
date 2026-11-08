@@ -13,7 +13,7 @@ data class TextLayerConfig(
 
     init {
         require(text.isNotBlank()) { "Text cannot be blank" }
-        require(text.length <= 2000) { "Text is too long" }
+        require(text.length <= 200) { "Text is too long" }
         require(textSize.isFinite() && textSize in 16f..180f) { "Text size must be 16–180" }
     }
 
