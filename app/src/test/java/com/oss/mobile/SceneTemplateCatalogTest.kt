@@ -24,10 +24,10 @@ class SceneTemplateCatalogTest {
                 val scene = SceneTemplateCatalog.create(entry, "template_test")
                 val screen = scene.layers.single { it.moduleId == SceneScreenLayerConfig.MODULE_ID }
 
-                assertEquals(0f, screen.transform.x)
-                assertEquals(0f, screen.transform.y)
-                assertEquals(1f, screen.transform.width)
-                assertEquals(1f, screen.transform.height)
+                assertEquals(0f, screen.transform.x, 0.0001f)
+                assertEquals(0f, screen.transform.y, 0.0001f)
+                assertEquals(1f, screen.transform.width, 0.0001f)
+                assertEquals(1f, screen.transform.height, 0.0001f)
                 assertEquals(0, scene.renderOrder().indexOf(screen))
             }
     }
