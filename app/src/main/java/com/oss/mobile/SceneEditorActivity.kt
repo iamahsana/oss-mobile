@@ -196,8 +196,23 @@ class SceneEditorActivity : Activity() {
                 marginEnd = dp(5)
             })
         layerActions.addView(makeButton("Turun layer", 11) { moveSelectedLayer(-1) },
+            LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+                marginStart = dp(5)
+                marginEnd = dp(5)
+            })
+        layerActions.addView(makeButton("Nama layer", 10) { renameSelectedLayer() },
             LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(5) })
         root.addView(layerActions)
+
+        val imageEditRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        imageEditRow.addView(makeButton("Edit gambar", 11) { editSelectedImage() },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)).apply {
+                topMargin = dp(5)
+            })
+        root.addView(imageEditRow)
 
         val precisionRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -703,6 +718,96 @@ class SceneEditorActivity : Activity() {
                 editor.selectLayer(layers[index].id)
             }
             .setNegativeButton("Tutup", null)
+            .show()
+    }
+
+    private fun renameSelectedLayer() {
+        val selected = editor.selectedLayer() ?: return noSelection()
+        val field = EditText(this).apply {
+            setSingleLine(true)
+            setText(selected.displayName)
+            setSelection(text.length)
+            setPadding(dp(20), dp(12), dp(20), dp(12))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Nama layer")
+            .setView(field)
+            .setPositiveButton("Simpan") { _, _ ->
+                val name = field.text.toString().trim()
+                if (name.isBlank()) {
+                    Toast.makeText(this, "Nama layer tidak boleh kosong.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                checkpointHistory()
+                document = document.copy(layers = document.layers.map {
+                    if (it.id == selected.id) it.copy(displayName = name.take(48)) else it
+                })
+                editor.setScene(document, selected.id)
+                streamService?.applySceneDocument(document)
+                statusView.text = "Nama layer diperbarui."
+            }
+            .setNegativeButton("Batal", null)
+            .show()
+    }
+
+    private fun editSelectedImage() {
+        val selected = editor.selectedLayer() ?: return noSelection()
+        if (selected.moduleId != TEST_IMAGE_MODULE) {
+            Toast.makeText(this, "Pilih layer gambar terlebih dahulu.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val flipHorizontal = CheckBox(this).apply {
+            text = "Balik horizontal"
+            isChecked = selected.configuration[StaticImageLayerConfig.KEY_FLIP_HORIZONTAL] == "true"
+        }
+        val flipVertical = CheckBox(this).apply {
+            text = "Balik vertikal"
+            isChecked = selected.configuration[StaticImageLayerConfig.KEY_FLIP_VERTICAL] == "true"
+        }
+        val opacityLabel = TextView(this).apply {
+            text = "Opacity gambar: " + (selected.transform.opacity * 100).toInt() + "%"
+            setTextColor(Color.WHITE)
+            textSize = 14f
+        }
+        val opacity = SeekBar(this).apply {
+            max = 100
+            progress = (selected.transform.opacity * 100).toInt()
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    opacityLabel.text = "Opacity gambar: " + progress + "%"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(flipHorizontal)
+            addView(flipVertical)
+            addView(opacityLabel)
+            addView(opacity)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Edit gambar")
+            .setView(panel)
+            .setPositiveButton("Terapkan") { _, _ ->
+                checkpointHistory()
+                val config = selected.configuration.toMutableMap().apply {
+                    put(StaticImageLayerConfig.KEY_FLIP_HORIZONTAL, flipHorizontal.isChecked.toString())
+                    put(StaticImageLayerConfig.KEY_FLIP_VERTICAL, flipVertical.isChecked.toString())
+                }
+                document = document.copy(layers = document.layers.map {
+                    if (it.id == selected.id) it.copy(
+                        configuration = config,
+                        transform = it.transform.copy(opacity = opacity.progress / 100f)
+                    ) else it
+                })
+                editor.setScene(document, selected.id)
+                streamService?.applySceneDocument(document)
+                statusView.text = "Pengaturan gambar diterapkan."
+            }
+            .setNegativeButton("Batal", null)
             .show()
     }
 
