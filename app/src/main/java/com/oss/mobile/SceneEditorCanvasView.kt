@@ -168,6 +168,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         val image = imageBitmap(layer)
         val textBitmap = textBitmap(layer)
         val shapeBitmap = shapeBitmap(layer)
+        val stickerBitmap = stickerBitmap(layer)
         if (image != null && layer.moduleId == "oss.source.image.static") {
             val displayImage = processedImageBitmap(layer, image)
             imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
@@ -188,6 +189,10 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
             canvas.drawBitmap(shapeBitmap, null, rect, imagePaint)
             imagePaint.alpha = 255
+        } else if (stickerBitmap != null) {
+            imagePaint.alpha = (layer.transform.opacity * 255f).toInt().coerceIn(0, 255)
+            canvas.drawBitmap(stickerBitmap, null, rect, imagePaint)
+            imagePaint.alpha = 255
         } else {
             layerPaint.color = if (selected) Color.argb(220, 39, 116, 151)
                 else Color.argb(175, 48, 82, 103)
@@ -201,7 +206,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             android.text.TextUtils.ellipsize(label, android.text.TextPaint(labelPaint), maxTextWidth,
                 android.text.TextUtils.TruncateAt.END).toString()
         } else label
-        if (image == null && textBitmap == null && shapeBitmap == null &&
+        if (image == null && textBitmap == null && shapeBitmap == null && stickerBitmap == null &&
             rect.width() > 28f * density && rect.height() > 20f * density) {
             canvas.drawText(display, cx, cy + labelPaint.textSize * 0.35f, labelPaint)
         }
@@ -291,6 +296,24 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         return try {
             val bitmap = ShapeLayerBitmapFactory.create(ShapeLayerConfig.from(layer.configuration))
             if (textBitmapCache.size >= 4) {
+                val eldest = textBitmapCache.entries.first()
+                textBitmapCache.remove(eldest.key)
+                if (!eldest.value.isRecycled) eldest.value.recycle()
+            }
+            textBitmapCache[key] = bitmap
+            bitmap
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun stickerBitmap(layer: SceneLayer): Bitmap? {
+        if (layer.moduleId != StickerLayerConfig.MODULE_ID) return null
+        val key = "sticker:" + layer.configuration.toSortedMap().toString()
+        textBitmapCache[key]?.let { if (!it.isRecycled) return it }
+        return try {
+            val bitmap = StickerLayerBitmapFactory.create(StickerLayerConfig.from(layer.configuration))
+            if (textBitmapCache.size >= 8) {
                 val eldest = textBitmapCache.entries.first()
                 textBitmapCache.remove(eldest.key)
                 if (!eldest.value.isRecycled) eldest.value.recycle()
