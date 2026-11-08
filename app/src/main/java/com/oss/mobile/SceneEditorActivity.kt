@@ -347,6 +347,26 @@ class SceneEditorActivity : Activity() {
             isChecked = current.bold
         }
         panel.addView(boldCheck)
+        val italicCheck = CheckBox(this).apply {
+            text = "Miring (italic)"
+            setTextColor(Color.WHITE)
+            isChecked = current.italic
+        }
+        panel.addView(italicCheck)
+        val fontLabel = TextView(this).apply {
+            text = "Jenis huruf"
+            setTextColor(Color.WHITE)
+            setPadding(0, dp(8), 0, dp(2))
+        }
+        panel.addView(fontLabel)
+        val fontGroup = RadioGroup(this).apply { orientation = RadioGroup.HORIZONTAL }
+        val fonts = listOf("Sans" to StaticTextLayerConfig.FontFamily.SANS, "Serif" to StaticTextLayerConfig.FontFamily.SERIF, "Mono" to StaticTextLayerConfig.FontFamily.MONOSPACE)
+        fonts.forEach { item ->
+            val radio = RadioButton(this).apply { id = View.generateViewId(); text = item.first; setTextColor(Color.WHITE) }
+            fontGroup.addView(radio)
+            if (item.second == current.fontFamily) fontGroup.check(radio.id)
+        }
+        panel.addView(fontGroup)
         val outlineCheck = CheckBox(this).apply {
             text = "Outline hitam"
             setTextColor(Color.WHITE)
@@ -397,6 +417,35 @@ class SceneEditorActivity : Activity() {
             gradientCheck.isEnabled = checked
         }
         panel.addView(gradientCheck)
+        val backgroundColorLabel = TextView(this).apply { text = "Warna background"; setTextColor(Color.WHITE); setPadding(0, dp(8), 0, dp(2)) }
+        panel.addView(backgroundColorLabel)
+        val backgroundColors = listOf("Gelap" to Color.argb(220, 15, 25, 35), "Hitam" to Color.BLACK, "Biru" to Color.rgb(20, 70, 125), "Ungu" to Color.rgb(90, 45, 125), "Putih" to Color.WHITE)
+        val backgroundColorGroup = RadioGroup(this).apply { orientation = RadioGroup.HORIZONTAL }
+        var selectedBackgroundColor = current.backgroundColor
+        backgroundColors.forEach { item ->
+            val radio = RadioButton(this).apply { id = View.generateViewId(); text = item.first; textSize = 11f; setTextColor(item.second) }
+            backgroundColorGroup.addView(radio)
+            if (item.second == current.backgroundColor) backgroundColorGroup.check(radio.id)
+        }
+        backgroundColorGroup.setOnCheckedChangeListener { group, checkedId ->
+            selectedBackgroundColor = backgroundColors.firstOrNull { item -> (0 until group.childCount).any { i -> val child = group.getChildAt(i) as? RadioButton; child?.id == checkedId && child.text.toString() == item.first } }?.second ?: selectedBackgroundColor
+        }
+        panel.addView(backgroundColorGroup)
+        val radiusLabel = TextView(this).apply { text = "Sudut background: ${current.backgroundRadius.toInt()}"; setTextColor(Color.WHITE); setPadding(0, dp(6), 0, dp(2)) }
+        panel.addView(radiusLabel)
+        val radiusSeek = SeekBar(this).apply { max = 48; progress = current.backgroundRadius.toInt(); isEnabled = current.backgroundEnabled }
+        backgroundCheck.setOnCheckedChangeListener { _, checked ->
+            gradientCheck.isEnabled = checked
+            backgroundColorGroup.isEnabled = checked
+            for (i in 0 until backgroundColorGroup.childCount) backgroundColorGroup.getChildAt(i).isEnabled = checked
+            radiusSeek.isEnabled = checked
+        }
+        radiusSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) { radiusLabel.text = "Sudut background: $progress" }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        panel.addView(radiusSeek)
         val colorLabel = TextView(this).apply {
             text = "Warna"
             setTextColor(Color.WHITE)
@@ -477,7 +526,11 @@ class SceneEditorActivity : Activity() {
                     outlineWidth = if (outlineCheck.isChecked) outlineSeek.progress.toFloat().coerceAtLeast(1f) else 0f,
                     shadow = shadowCheck.isChecked,
                     backgroundEnabled = backgroundCheck.isChecked,
-                    backgroundGradient = backgroundCheck.isChecked && gradientCheck.isChecked
+                    backgroundColor = selectedBackgroundColor,
+                    backgroundGradient = backgroundCheck.isChecked && gradientCheck.isChecked,
+                    backgroundRadius = radiusSeek.progress.toFloat(),
+                    italic = italicCheck.isChecked,
+                    fontFamily = fonts.firstOrNull { (label, _) -> (0 until fontGroup.childCount).any { i -> val child = fontGroup.getChildAt(i) as? RadioButton; child?.id == fontGroup.checkedRadioButtonId && child.text.toString() == label } }?.second ?: current.fontFamily
                 )
                 val bitmap = TextLayerBitmapFactory.create(config)
                 val width = selected.transform.width
