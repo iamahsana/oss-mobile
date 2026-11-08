@@ -231,7 +231,6 @@ class SceneEditorActivity : Activity() {
             item("GIF  ＋") { openGifPicker() }
             item("Video  ＋") { openVideoPicker() }
             item("Share Screen") { showScreenSourceInfo() }
-            item("Kamera") { Toast.makeText(this, "Modul kamera disiapkan untuk beta berikutnya.", Toast.LENGTH_SHORT).show() }
             item("Layers") { showLayers() }
         }
         strip.addView(items)
@@ -311,16 +310,9 @@ class SceneEditorActivity : Activity() {
     }
 
     private fun showAddSourceMenu() {
-        val choices = arrayOf("Share Screen", "Kamera", "Audio / sumber eksternal")
         AlertDialog.Builder(this)
             .setTitle("Tambah sumber")
-            .setItems(choices) { _, which ->
-                when (which) {
-                    0 -> showScreenSourceInfo()
-                    1 -> Toast.makeText(this, "Sumber kamera disiapkan sebagai modul berikutnya.", Toast.LENGTH_LONG).show()
-                    else -> Toast.makeText(this, "Sumber audio dikelola melalui Audio Mixer.", Toast.LENGTH_LONG).show()
-                }
-            }
+            .setItems(arrayOf("Share Screen")) { _, _ -> showScreenSourceInfo() }
             .setNegativeButton("Tutup", null)
             .show()
     }
