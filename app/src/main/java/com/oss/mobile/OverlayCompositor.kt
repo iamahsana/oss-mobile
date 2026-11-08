@@ -59,12 +59,23 @@ class OverlayCompositor(
         val desiredScreen = desired.firstOrNull { it.first == SceneScreenLayerConfig.MODULE_ID }
         if (currentScreen != null && desiredScreen != null &&
             currentScreen.second === desiredScreen.second) {
-            current.filter { it.first != SceneScreenLayerConfig.MODULE_ID }.forEach { (_, renderer) ->
+            val currentOverlays = current.filter { it.first != SceneScreenLayerConfig.MODULE_ID }
+            val desiredOverlays = orderedLayers.filter { it.id != SceneScreenLayerConfig.MODULE_ID }
+            var stablePrefix = 0
+            while (stablePrefix < currentOverlays.size && stablePrefix < desiredOverlays.size &&
+                currentOverlays[stablePrefix].first == desiredOverlays[stablePrefix].id &&
+                currentOverlays[stablePrefix].second === desiredOverlays[stablePrefix].renderer) {
+                stablePrefix++
+            }
+            currentOverlays.drop(stablePrefix).asReversed().forEach { (_, renderer) ->
                 glInterface.removeFilter(renderer)
             }
             attachedLayers.clear()
             attachedLayers[SceneScreenLayerConfig.MODULE_ID] = currentScreen.second
-            orderedLayers.filter { it.id != SceneScreenLayerConfig.MODULE_ID }.forEach { layer ->
+            currentOverlays.take(stablePrefix).forEach { (id, renderer) ->
+                attachedLayers[id] = renderer
+            }
+            desiredOverlays.drop(stablePrefix).forEach { layer ->
                 glInterface.addFilter(layer.renderer)
                 attachedLayers[layer.id] = layer.renderer
             }
