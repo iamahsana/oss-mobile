@@ -1392,40 +1392,6 @@ class SceneEditorActivity : Activity() {
             setTextColor(Color.rgb(43, 54, 72))
         })
 
-        fun field(label: String, value: Float): EditText {
-            val column = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(3), dp(3), dp(3), dp(3))
-            }
-            column.addView(TextView(this).apply {
-                text = label
-                textSize = 10f
-                setTextColor(Color.rgb(91, 101, 118))
-            })
-            val input = EditText(this).apply {
-                setSingleLine(true)
-                textSize = 13f
-                inputType = android.text.InputType.TYPE_CLASS_NUMBER or
-                    android.text.InputType.TYPE_NUMBER_FLAG_SIGNED or
-                    android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
-                setText(String.format(java.util.Locale.US, "%.3f", value))
-                setPadding(dp(7), 0, dp(7), 0)
-                background = GradientDrawable().apply {
-                    setColor(Color.rgb(246, 248, 251))
-                    cornerRadius = dp(7).toFloat()
-                    setStroke(dp(1), Color.rgb(220, 224, 232))
-                }
-            }
-            column.addView(input, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(38)
-            ))
-            return input.also {
-                if (propertyPanel.childCount > 0) {
-                    // Field is added to its row below by the caller.
-                }
-            }
-        }
-
         fun row(vararg entries: Pair<String, Float>): List<EditText> {
             val container = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             val inputs = entries.map { (label, value) ->
