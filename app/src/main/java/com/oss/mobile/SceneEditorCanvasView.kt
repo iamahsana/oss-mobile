@@ -592,8 +592,9 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                 startTransform = selectedLayer()?.transform
                 startPointerAngle = handleLayer?.let { pointerAngle(it, event.x, event.y, scale) } ?: 0f
                 startRotation = if (selectedLayerIds.size > 1) 0f else selectedLayer()?.transform?.rotationDegrees ?: 0f
-                if (multiSelectEnabled && selectedLayerIds.size > 1) {
-                    multiStartTransforms = document.layers.filter { it.id in selectedLayerIds }
+                val transformIds = transformSelectionIds()
+                if (transformIds.size > 1) {
+                    multiStartTransforms = document.layers.filter { it.id in transformIds }
                         .associate { it.id to it.transform }
                     multiStartBounds = selectionHandleLayer()?.transform
                 } else {
@@ -661,9 +662,21 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         return true
     }
 
+    private fun transformSelectionIds(): Set<String> {
+        val primary = selectedLayer()
+        val groupId = primary?.groupId
+        if (groupId != null) {
+            return document.layers.filter { it.groupId == groupId }.map { it.id }.toSet()
+        }
+        return if (multiSelectEnabled && selectedLayerIds.size > 1) {
+            selectedLayerIds.toSet()
+        } else primary?.let { setOf(it.id) } ?: emptySet()
+    }
+
     private fun selectionHandleLayer(): SceneLayer? {
-        val selected = if (multiSelectEnabled && selectedLayerIds.size > 1) {
-            document.layers.filter { it.id in selectedLayerIds }
+        val ids = transformSelectionIds()
+        val selected = if (ids.size > 1) {
+            document.layers.filter { it.id in ids }
         } else listOfNotNull(selectedLayer())
         if (selected.isEmpty()) return null
         if (selected.size == 1) return selected.first()
@@ -683,11 +696,12 @@ class SceneEditorCanvasView(context: Context) : View(context) {
 
     private fun updateDraggedLayer(dx: Float, dy: Float, scale: Float) {
         val layer = selectedLayer() ?: return
-        if (multiSelectEnabled && selectedLayerIds.size > 1) {
+        val transformIds = transformSelectionIds()
+        if (transformIds.size > 1) {
             val dxNormalized = dx / (scale * document.canvas.width)
             val dyNormalized = dy / (scale * document.canvas.height)
             document = document.copy(layers = document.layers.map { item ->
-                if (item.id in selectedLayerIds && !item.locked) item.copy(
+                if (item.id in transformIds && !item.locked) item.copy(
                     transform = item.transform.copy(
                         x = (item.transform.x + dxNormalized).coerceIn(-1f, 2f),
                         y = (item.transform.y + dyNormalized).coerceIn(-1f, 2f)
@@ -740,14 +754,15 @@ class SceneEditorCanvasView(context: Context) : View(context) {
 
     private fun updateResizedLayer(dx: Float, dy: Float, scale: Float) {
         val layer = selectedLayer() ?: return
-        if (multiSelectEnabled && selectedLayerIds.size > 1) {
+        val transformIds = transformSelectionIds()
+        if (transformIds.size > 1) {
             val bounds = multiStartBounds ?: selectionHandleLayer()?.transform ?: return
             val width = (bounds.width + dx / (scale * document.canvas.width)).coerceIn(0.03f, 2f)
             val height = (bounds.height + dy / (scale * document.canvas.height)).coerceIn(0.03f, 2f)
             val scaleX = width / bounds.width
             val scaleY = height / bounds.height
             document = document.copy(layers = document.layers.map { item ->
-                if (item.id in selectedLayerIds && !item.locked) {
+                if (item.id in transformIds && !item.locked) {
                     val t = multiStartTransforms[item.id] ?: item.transform
                     item.copy(transform = t.copy(
                         x = bounds.x + (t.x - bounds.x) * scaleX,
@@ -775,20 +790,21 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     private fun updateRotatedLayer(x: Float, y: Float, scale: Float) {
         val layer = selectedLayer() ?: return
         val target = selectionHandleLayer() ?: layer
-        val rotationTarget = if (multiSelectEnabled && selectedLayerIds.size > 1) {
+        val transformIds = transformSelectionIds()
+        val rotationTarget = if (transformIds.size > 1) {
             target.copy(transform = multiStartBounds ?: target.transform)
         } else target
         val currentAngle = pointerAngle(rotationTarget, x, y, scale)
         var delta = currentAngle - startPointerAngle
         while (delta > 180f) delta -= 360f
         while (delta < -180f) delta += 360f
-        if (multiSelectEnabled && selectedLayerIds.size > 1) {
+        if (transformIds.size > 1) {
             val bounds = multiStartBounds ?: target.transform
             val cx = bounds.x + bounds.width / 2f
             val cy = bounds.y + bounds.height / 2f
             val radians = Math.toRadians(delta.toDouble())
             document = document.copy(layers = document.layers.map { item ->
-                if (item.id in selectedLayerIds && !item.locked) {
+                if (item.id in transformIds && !item.locked) {
                     val t = multiStartTransforms[item.id] ?: item.transform
                     val itemCx = t.x + t.width / 2f - cx
                     val itemCy = t.y + t.height / 2f - cy
