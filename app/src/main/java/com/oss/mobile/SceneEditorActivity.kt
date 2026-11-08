@@ -207,13 +207,85 @@ class SceneEditorActivity : Activity() {
         }
         if (dockShowingProperties && editor.selectedLayer() != null) {
             val selected = editor.selectedLayer()!!
-            item("Posisi / ukuran") { editSelectedTransform() }
+            addSeekProperty(items, "Opacity", (selected.transform.opacity * 100).toInt(), 100,
+                onStart = { checkpointHistory() },
+                onChange = { value ->
+                    updateSelectedLayer { it.copy(transform = it.transform.copy(opacity = value / 100f)) }
+                },
+                onFinish = { finishPropertyChange() }
+            )
             when (selected.moduleId) {
-                StaticTextLayerConfig.MODULE_ID -> item("Teks & gaya") { editSelectedText() }
-                "oss.source.image.static" -> item("Gambar / crop") { editSelectedImage() }
-                ShapeLayerConfig.MODULE_ID -> item("Warna / bentuk") { editSelectedShape() }
-                StickerLayerConfig.MODULE_ID -> item("Stiker") { Toast.makeText(this, "Pengaturan stiker tersedia melalui posisi, ukuran, dan opacity.", Toast.LENGTH_SHORT).show() }
+                StaticTextLayerConfig.MODULE_ID -> {
+                    val config = StaticTextLayerConfig.from(selected.configuration)
+                    addSeekProperty(items, "Ukuran teks", (config.textSize.toInt() - 16).coerceIn(0, 240), 240,
+                        onStart = { checkpointHistory() },
+                        onChange = { value -> updateSelectedLayer { layer ->
+                            layer.copy(configuration = StaticTextLayerConfig.from(layer.configuration)
+                                .copy(textSize = (value + 16).toFloat()).toMap())
+                        } },
+                        onFinish = { finishPropertyChange() }
+                    )
+                    addPropertyToggle(items, "Bold", config.bold) { checked ->
+                        updateSelectedLayer { layer -> layer.copy(configuration =
+                            StaticTextLayerConfig.from(layer.configuration).copy(bold = checked).toMap()) }
+                    }
+                    addPropertyToggle(items, "Italic", config.italic) { checked ->
+                        updateSelectedLayer { layer -> layer.copy(configuration =
+                            StaticTextLayerConfig.from(layer.configuration).copy(italic = checked).toMap()) }
+                    }
+                    addPropertyToggle(items, "Underline", config.underline) { checked ->
+                        updateSelectedLayer { layer -> layer.copy(configuration =
+                            StaticTextLayerConfig.from(layer.configuration).copy(underline = checked).toMap()) }
+                    }
+                    item("Detail teks") { editSelectedText() }
+                }
+                "oss.source.image.static" -> {
+                    val config = StaticImageLayerConfig.from(selected.configuration)
+                    addSeekProperty(items, "Zoom crop", ((config.cropZoom - 1f) * 100).toInt().coerceIn(0, 200), 200,
+                        onStart = { checkpointHistory() },
+                        onChange = { value -> updateSelectedLayer { layer ->
+                            layer.copy(configuration = StaticImageLayerConfig.from(layer.configuration)
+                                .copy(cropZoom = 1f + value / 100f).toMap())
+                        } },
+                        onFinish = { finishPropertyChange() }
+                    )
+                    addPropertyToggle(items, "Flip H", config.flipHorizontal) { checked ->
+                        updateSelectedLayer { layer -> layer.copy(configuration =
+                            StaticImageLayerConfig.from(layer.configuration).copy(flipHorizontal = checked).toMap()) }
+                    }
+                    addPropertyToggle(items, "Flip V", config.flipVertical) { checked ->
+                        updateSelectedLayer { layer -> layer.copy(configuration =
+                            StaticImageLayerConfig.from(layer.configuration).copy(flipVertical = checked).toMap()) }
+                    }
+                    item("Detail gambar") { editSelectedImage() }
+                }
+                ShapeLayerConfig.MODULE_ID -> {
+                    val config = ShapeLayerConfig.from(selected.configuration)
+                    addSeekProperty(items, "Border", config.strokeWidth.toInt(), 48,
+                        onStart = { checkpointHistory() },
+                        onChange = { value -> updateSelectedLayer { layer ->
+                            layer.copy(configuration = ShapeLayerConfig.from(layer.configuration)
+                                .copy(strokeWidth = value.toFloat()).toMap())
+                        } },
+                        onFinish = { finishPropertyChange() }
+                    )
+                    addSeekProperty(items, "Radius", config.cornerRadius.toInt(), 100,
+                        onStart = { checkpointHistory() },
+                        onChange = { value -> updateSelectedLayer { layer ->
+                            layer.copy(configuration = ShapeLayerConfig.from(layer.configuration)
+                                .copy(cornerRadius = value.toFloat()).toMap())
+                        } },
+                        onFinish = { finishPropertyChange() }
+                    )
+                    addPropertyToggle(items, "Isi warna", config.fillEnabled) { checked ->
+                        updateSelectedLayer { layer -> layer.copy(configuration =
+                            ShapeLayerConfig.from(layer.configuration).copy(fillEnabled = checked).toMap()) }
+                    }
+                    item("Detail bentuk") { editSelectedShape() }
+                }
+                else -> item("Properti lanjutan") { editSelectedTransform() }
             }
+            item("Posisi / ukuran") { editSelectedTransform() }
             item("Duplikat") { duplicateSelected() }
             item("Urutan") { showLayers() }
             item(if (selected.locked) "Buka kunci" else "Kunci") { toggleLock() }
@@ -254,6 +326,80 @@ class SceneEditorActivity : Activity() {
             } else Toast.makeText(this@SceneEditorActivity, "Pilih elemen terlebih dahulu.", Toast.LENGTH_SHORT).show()
         }, LinearLayout.LayoutParams(0, dockTabHeight(), 1f))
         dockContainer.addView(tabs)
+    }
+
+    private fun addSeekProperty(
+        parent: LinearLayout,
+        label: String,
+        initial: Int,
+        maximum: Int,
+        onStart: () -> Unit,
+        onChange: (Int) -> Unit,
+        onFinish: () -> Unit
+    ) {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(4), dp(8), dp(3))
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(247, 248, 251))
+                cornerRadius = dp(9).toFloat()
+                setStroke(dp(1), Color.rgb(225, 228, 234))
+            }
+        }
+        card.addView(TextView(this).apply {
+            text = "$label: $initial"
+            textSize = 10f
+            setTextColor(Color.rgb(55, 64, 78))
+        })
+        card.addView(SeekBar(this).apply {
+            max = maximum.coerceAtLeast(1)
+            progress = initial.coerceIn(0, max)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    if (fromUser) {
+                        (card.getChildAt(0) as TextView).text = "$label: $progress"
+                        onChange(progress)
+                    }
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) { onStart() }
+                override fun onStopTrackingTouch(seekBar: SeekBar?) { onFinish() }
+            })
+        })
+        parent.addView(card, LinearLayout.LayoutParams(dp(148), dockItemHeight()).apply {
+            marginEnd = dp(5)
+        })
+    }
+
+    private fun addPropertyToggle(
+        parent: LinearLayout,
+        label: String,
+        checked: Boolean,
+        onChange: (Boolean) -> Unit
+    ) {
+        val button = makeButton("$label: ${if (checked) "ON" else "OFF"}", 10) {
+            checkpointHistory()
+            onChange(!checked)
+            finishPropertyChange()
+            renderBottomDock()
+        }
+        parent.addView(button, LinearLayout.LayoutParams(dp(92), dockItemHeight()).apply {
+            marginEnd = dp(5)
+        })
+    }
+
+    private fun updateSelectedLayer(update: (SceneLayer) -> SceneLayer) {
+        val selected = editor.selectedLayer() ?: return
+        val updated = update(selected)
+        document = document.copy(layers = document.layers.map { if (it.id == selected.id) updated else it })
+        editor.setScene(document, selected.id, notifySelection = false)
+        streamService?.applySceneDocument(document)
+    }
+
+    private fun finishPropertyChange() {
+        runCatching { repository.save(document) }
+            .onFailure { statusView.text = "Gagal menyimpan properti: ${it.message}" }
+        updateHistoryButtons()
     }
 
     private fun showWorkspaceMenu() {
