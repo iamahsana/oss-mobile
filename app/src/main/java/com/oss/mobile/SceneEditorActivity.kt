@@ -981,6 +981,9 @@ class SceneEditorActivity : Activity() {
                 require(imported.asset.kind == SceneMediaAsset.Kind.ANIMATED_IMAGE) {
                     "Pilih file GIF animasi."
                 }
+                require(imported.asset.sizeBytes <= SceneGifLayerConfig.MAX_GIF_BYTES) {
+                    "Ukuran GIF maksimal 10 MB."
+                }
                 val nextZ = (document.layers.maxOfOrNull { it.zIndex } ?: -1) + 1
                 val layer = SceneLayer(
                     id = "gif_" + java.util.UUID.randomUUID().toString().replace("-", ""),
