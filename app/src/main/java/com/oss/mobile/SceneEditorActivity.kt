@@ -31,6 +31,7 @@ class SceneEditorActivity : Activity() {
     private lateinit var editor: SceneEditorCanvasView
     private lateinit var titleView: TextView
     private lateinit var statusView: TextView
+    private lateinit var canvasSizeButton: Button
     private lateinit var document: SceneDocument
     private var streamService: ScreenStreamService? = null
     private var serviceBound = false
@@ -94,7 +95,8 @@ class SceneEditorActivity : Activity() {
         }
         root.addView(statusView)
 
-        root.addView(makeButton(canvasButtonLabel(), 12) { showCanvasSizes() },
+        canvasSizeButton = makeButton(canvasButtonLabel(), 12) { showCanvasSizes() }
+        root.addView(canvasSizeButton,
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)).apply {
                 bottomMargin = dp(6)
             })
@@ -209,6 +211,7 @@ class SceneEditorActivity : Activity() {
 
     private fun applyCanvasSize(canvas: SceneCanvas) {
         document = document.copy(canvas = canvas)
+        canvasSizeButton.text = canvasButtonLabel()
         editor.setScene(document, editor.selectedLayer()?.id)
         streamService?.applySceneDocument(document)
         try {
