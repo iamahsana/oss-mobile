@@ -12,7 +12,8 @@ import java.nio.file.StandardCopyOption
  * cannot leave a half-written scene as the active file.
  */
 class SceneDocumentRepository(context: Context) {
-    private val directory = File(context.applicationContext.filesDir, "scenes")
+    private val appContext = context.applicationContext
+    private val directory = File(appContext.filesDir, "scenes")
 
     @Synchronized
     fun save(document: SceneDocument) {
@@ -41,6 +42,7 @@ class SceneDocumentRepository(context: Context) {
         } finally {
             if (temporary.exists()) temporary.delete()
         }
+        pruneUnreferencedMedia()
     }
 
     @Synchronized
@@ -73,7 +75,15 @@ class SceneDocumentRepository(context: Context) {
     fun delete(id: String): Boolean {
         val safeId = validatedId(id)
         val file = File(directory, "$safeId.oss-scene")
-        return !file.exists() || file.delete()
+        val deleted = !file.exists() || file.delete()
+        if (deleted) pruneUnreferencedMedia()
+        return deleted
+    }
+
+    private fun pruneUnreferencedMedia() {
+        // Never garbage-collect media if any scene document cannot be decoded.
+        val documents = runCatching { list() }.getOrNull() ?: return
+        runCatching { SceneMediaAssetStorage.pruneUnreferenced(appContext, documents) }
     }
 
     private fun validatedId(id: String): String {
