@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.LinearGradient
+import android.graphics.Shader
 import android.graphics.Typeface
 
 /** Validated, serializable configuration for an editable text source. */
@@ -14,7 +16,11 @@ data class StaticTextLayerConfig(
     val bold: Boolean = false,
     val alignment: Alignment = Alignment.LEFT,
     val outlineWidth: Float = 0f,
-    val shadow: Boolean = false
+    val shadow: Boolean = false,
+    val backgroundEnabled: Boolean = false,
+    val backgroundColor: Int = Color.argb(210, 15, 25, 35),
+    val backgroundGradient: Boolean = false,
+    val backgroundGradientEndColor: Int = Color.rgb(40, 170, 210)
 ) {
     enum class Alignment { LEFT, CENTER, RIGHT }
 
@@ -31,7 +37,11 @@ data class StaticTextLayerConfig(
         KEY_BOLD to bold.toString(),
         KEY_ALIGNMENT to alignment.name,
         KEY_OUTLINE_WIDTH to outlineWidth.toString(),
-        KEY_SHADOW to shadow.toString()
+        KEY_SHADOW to shadow.toString(),
+        KEY_BACKGROUND_ENABLED to backgroundEnabled.toString(),
+        KEY_BACKGROUND_COLOR to String.format("#%08X", backgroundColor),
+        KEY_BACKGROUND_GRADIENT to backgroundGradient.toString(),
+        KEY_BACKGROUND_GRADIENT_END to String.format("#%08X", backgroundGradientEndColor)
     )
 
     companion object {
@@ -43,6 +53,10 @@ data class StaticTextLayerConfig(
         const val KEY_ALIGNMENT = "alignment"
         const val KEY_OUTLINE_WIDTH = "outline_width"
         const val KEY_SHADOW = "shadow"
+        const val KEY_BACKGROUND_ENABLED = "background_enabled"
+        const val KEY_BACKGROUND_COLOR = "background_color"
+        const val KEY_BACKGROUND_GRADIENT = "background_gradient"
+        const val KEY_BACKGROUND_GRADIENT_END = "background_gradient_end"
 
         fun from(values: Map<String, String>): StaticTextLayerConfig {
             val text = values[KEY_TEXT] ?: "Teks"
@@ -55,7 +69,11 @@ data class StaticTextLayerConfig(
             }.getOrDefault(Alignment.LEFT)
             val outlineWidth = values[KEY_OUTLINE_WIDTH]?.toFloatOrNull()?.coerceIn(0f, 12f) ?: 0f
             val shadow = values[KEY_SHADOW]?.toBooleanStrictOrNull() ?: false
-            return StaticTextLayerConfig(text, color, size, bold, alignment, outlineWidth, shadow)
+            val backgroundEnabled = values[KEY_BACKGROUND_ENABLED]?.toBooleanStrictOrNull() ?: false
+            val backgroundColor = runCatching { Color.parseColor(values[KEY_BACKGROUND_COLOR] ?: "#D20F1923") }.getOrDefault(Color.argb(210, 15, 25, 35))
+            val backgroundGradient = values[KEY_BACKGROUND_GRADIENT]?.toBooleanStrictOrNull() ?: false
+            val backgroundGradientEnd = runCatching { Color.parseColor(values[KEY_BACKGROUND_GRADIENT_END] ?: "#FF28AAD2") }.getOrDefault(Color.rgb(40, 170, 210))
+            return StaticTextLayerConfig(text, color, size, bold, alignment, outlineWidth, shadow, backgroundEnabled, backgroundColor, backgroundGradient, backgroundGradientEnd)
         }
     }
 }
@@ -84,7 +102,7 @@ object TextLayerBitmapFactory {
             lines += line
         }
         val effectPadding = (config.outlineWidth * 2f + if (config.shadow) 12f else 0f).toInt()
-        val padding = 16 + effectPadding
+        val padding = 18 + effectPadding
         val lineHeight = (config.textSize * 1.28f + effectPadding).toInt().coerceAtLeast(24)
         val contentWidth = lines.maxOfOrNull { paint.measureText(it) } ?: config.textSize
         val width = (contentWidth + padding * 2f).toInt().coerceIn(64, wrapWidth)
@@ -103,6 +121,17 @@ object TextLayerBitmapFactory {
         }
         return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { bitmap ->
             val canvas = Canvas(bitmap)
+            if (config.backgroundEnabled) {
+                val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = config.backgroundColor
+                    style = Paint.Style.FILL
+                    if (config.backgroundGradient) {
+                        shader = LinearGradient(0f, 0f, width.toFloat(), height.toFloat(),
+                            config.backgroundColor, config.backgroundGradientEndColor, Shader.TileMode.CLAMP)
+                    }
+                }
+                canvas.drawRoundRect(1f, 1f, width - 1f, height - 1f, 18f, 18f, backgroundPaint)
+            }
             lines.take(120).forEachIndexed { index, line ->
                 val baseline = padding + config.textSize + index * lineHeight
                 if (config.shadow) {
