@@ -96,8 +96,10 @@ class SceneEditorActivity : Activity() {
             maxLines = 1
         }
         header.addView(titleView, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        header.addView(makeButton("↶", 18) { undoScene() })
-        header.addView(makeButton("↷", 18) { redoScene() })
+        undoButton = makeButton("↶", 18) { undoScene() }
+        redoButton = makeButton("↷", 18) { redoScene() }
+        header.addView(undoButton)
+        header.addView(redoButton)
         header.addView(makeButton("Simpan", 12) { saveScene() })
         root.addView(header)
 
