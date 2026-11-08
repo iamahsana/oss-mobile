@@ -182,6 +182,14 @@ class SceneEditorActivity : Activity() {
             LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(5) })
         root.addView(shapeRow)
 
+        val stickerRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        stickerRow.addView(makeButton("＋ Stiker", 11) { showStickerPicker() },
+            LinearLayout.LayoutParams(0, dp(42), 1f))
+        root.addView(stickerRow)
+
         val secondRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -796,6 +804,31 @@ class SceneEditorActivity : Activity() {
                 }
                 streamService?.applySceneDocument(document)
                 statusView.text = "Shape diterapkan. Geser, ubah ukuran, atau putar di canvas."
+            }
+            .setNegativeButton("Batal", null)
+            .show()
+    }
+
+    private fun showStickerPicker() {
+        val stickers = StickerLayerConfig.ALLOWED_STICKERS
+        AlertDialog.Builder(this)
+            .setTitle("Pilih stiker")
+            .setItems(stickers.toTypedArray()) { _, index ->
+                val emoji = stickers[index]
+                val nextZ = (document.layers.maxOfOrNull { it.zIndex } ?: -1) + 1
+                val layer = SceneLayer(
+                    id = "sticker_" + java.util.UUID.randomUUID().toString().replace("-", ""),
+                    moduleId = StickerLayerConfig.MODULE_ID,
+                    displayName = "Stiker $emoji",
+                    zIndex = nextZ,
+                    transform = SceneTransform(x = 0.34f, y = 0.28f, width = 0.30f, height = 0.17f),
+                    configuration = StickerLayerConfig(emoji).toMap()
+                )
+                checkpointHistory()
+                document = document.copy(layers = document.layers + layer)
+                editor.setScene(document, layer.id)
+                streamService?.applySceneDocument(document)
+                statusView.text = "Stiker ditambahkan. Geser, ubah ukuran, atau putar."
             }
             .setNegativeButton("Batal", null)
             .show()
