@@ -18,7 +18,7 @@ object TextLayerBitmapFactory {
             color = config.color
             textSize = config.textSize
         }
-        val longestLine = config.text.split("\\n")
+        val longestLine = config.text.split("\n")
             .maxOfOrNull { paint.measureText(it).toInt() } ?: 64
         val contentWidth = longestLine.coerceIn(64, MAX_WIDTH - PADDING * 2)
         val alignment = when (config.alignment) {
