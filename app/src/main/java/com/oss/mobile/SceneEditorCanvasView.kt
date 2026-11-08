@@ -123,11 +123,6 @@ class SceneEditorCanvasView(context: Context) : View(context) {
 
     fun setMultiSelectEnabled(enabled: Boolean) {
         multiSelectEnabled = enabled
-        if (!enabled && selectedLayerIds.size > 1) {
-            val keep = selectedLayerId
-            selectedLayerIds.clear()
-            keep?.let(selectedLayerIds::add)
-        }
         invalidate()
     }
 
@@ -528,14 +523,22 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                         val hit = hitTest(event.x, event.y, scale)
                         if (hit != null) {
                             if (multiSelectEnabled) {
-                                if (hit.id !in selectedLayerIds) selectedLayerIds.add(hit.id)
-                                selectedLayerId = hit.id
+                                if (hit.id in selectedLayerIds) {
+                                    if (selectedLayerIds.size > 1) selectedLayerIds.remove(hit.id)
+                                } else selectedLayerIds.add(hit.id)
+                                selectedLayerId = hit.id.takeIf { it in selectedLayerIds }
+                                    ?: selectedLayerIds.firstOrNull()
                                 onSelectionChanged?.invoke(selectedLayer())
                                 invalidate()
+                                Gesture.NONE
                             } else {
-                                selectLayer(hit.id)
+                                if (hit.id !in selectedLayerIds || selectedLayerIds.size <= 1) {
+                                    selectLayer(hit.id)
+                                } else {
+                                    selectedLayerId = hit.id
+                                }
+                                if (hit.locked) Gesture.NONE else Gesture.DRAG
                             }
-                            if (hit.locked) Gesture.NONE else Gesture.DRAG
                         } else {
                             if (!multiSelectEnabled) selectLayer(null)
                             Gesture.NONE
@@ -545,7 +548,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                 if (gesture != Gesture.NONE) onEditStarted?.invoke()
                 startTransform = selectedLayer()?.transform
                 startPointerAngle = handleLayer?.let { pointerAngle(it, event.x, event.y, scale) } ?: 0f
-                startRotation = if (multiSelectEnabled && selectedLayerIds.size > 1) 0f else selectedLayer()?.transform?.rotationDegrees ?: 0f
+                startRotation = if (selectedLayerIds.size > 1) 0f else selectedLayer()?.transform?.rotationDegrees ?: 0f
                 if (multiSelectEnabled && selectedLayerIds.size > 1) {
                     multiStartTransforms = document.layers.filter { it.id in selectedLayerIds }
                         .associate { it.id to it.transform }
