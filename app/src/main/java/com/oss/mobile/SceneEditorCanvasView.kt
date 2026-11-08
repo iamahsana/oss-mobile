@@ -546,8 +546,20 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     }
 
     private fun updateLayerTransform(id: String, transform: SceneTransform) {
+        val active = document.layers.firstOrNull { it.id == id } ?: return
+        val dx = transform.x - active.transform.x
+        val dy = transform.y - active.transform.y
+        val groupId = active.groupId
         val updated = document.layers.map { layer ->
-            if (layer.id == id) layer.copy(transform = transform) else layer
+            when {
+                layer.id == id -> layer.copy(transform = transform)
+                groupId != null && layer.groupId == groupId && !layer.locked &&
+                    (dx != 0f || dy != 0f) -> layer.copy(transform = layer.transform.copy(
+                        x = (layer.transform.x + dx).coerceIn(-1f, 2f),
+                        y = (layer.transform.y + dy).coerceIn(-1f, 2f)
+                    ))
+                else -> layer
+            }
         }
         document = document.copy(layers = updated)
         onDocumentChanged?.invoke(document)
