@@ -338,7 +338,7 @@ class ScreenStreamService : Service(), ConnectChecker {
             overlayCompositor = OverlayCompositor(output.getGlInterface())
             sceneRendererController = SceneRendererController(
                 this,
-                listOf(StaticImageOverlayModule(), StaticTextOverlayModule(), ShapeOverlayModule(), EmojiStickerOverlayModule(), SceneGifOverlayModule(), SceneVideoOverlayModule()),
+                listOf(StaticImageOverlayModule(), StaticTextOverlayModule(), ShapeOverlayModule(), EmojiStickerOverlayModule(), SceneGifOverlayModule(), SceneVideoOverlayModule(), SceneScreenSourceModule(projection!!)),
                 overlayCompositor!!
             )
             if (savedScene != null) {
@@ -347,9 +347,19 @@ class ScreenStreamService : Service(), ConnectChecker {
                 applyTestImageOverlay(true)
             }
             output.getGlInterface().setForceRender(true, 15)
-            // ScreenSource manages display rotation itself; do not apply camera rotation.
+            // New scenes may contain Share Screen as a transformable GL layer.
+            // Keep legacy full-screen capture for old scenes until the user adds that layer.
+            // This preserves existing streams while the source-module path is adopted.
             output.getGlInterface().setCameraOrientation(0)
-            output.changeVideoSource(ScreenSource(applicationContext, projection!!))
+            val hasScreenLayer = savedScene?.layers?.any {
+                it.moduleId == SceneScreenLayerConfig.MODULE_ID && it.visible
+            } == true
+            if (hasScreenLayer) {
+                output.changeVideoSource(NoVideoSource())
+                sendStatus("Share Screen aktif sebagai elemen scene.")
+            } else {
+                output.changeVideoSource(ScreenSource(applicationContext, projection!!))
+            }
             pendingPreview?.let { view ->
                 startPreviewIfReady(view)
             }
