@@ -9,7 +9,6 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.util.SparseArray
 import android.view.MotionEvent
-import android.view.ScaleGestureDetector
 import android.view.View
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -24,7 +23,7 @@ import kotlin.math.sin
  * of each source and edits the same normalized SceneDocument consumed by the live renderer.
  */
 class SceneEditorCanvasView(context: Context) : View(context) {
-    private enum class Gesture { NONE, DRAG, RESIZE, ROTATE, PAN, PINCH }
+    private enum class Gesture { NONE, DRAG, RESIZE, ROTATE }
 
     private val density = resources.displayMetrics.density
     private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(12, 20, 29) }
@@ -70,9 +69,6 @@ class SceneEditorCanvasView(context: Context) : View(context) {
 
     private var document = SceneDocument(id = "editor", name = "Scene")
     private var selectedLayerId: String? = null
-    private var zoom = 1f
-    private var panX = 0f
-    private var panY = 0f
     private var gesture = Gesture.NONE
     private var downX = 0f
     private var downY = 0f
@@ -85,29 +81,6 @@ class SceneEditorCanvasView(context: Context) : View(context) {
 
     var onDocumentChanged: ((SceneDocument) -> Unit)? = null
     var onSelectionChanged: ((SceneLayer?) -> Unit)? = null
-
-    private val scaleDetector = ScaleGestureDetector(context,
-        object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-            override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-                gesture = Gesture.PINCH
-                return true
-            }
-
-            override fun onScale(detector: ScaleGestureDetector): Boolean {
-                val oldZoom = zoom
-                val nextZoom = (zoom * detector.scaleFactor).coerceIn(0.5f, 4f)
-                if (nextZoom != oldZoom) {
-                    val cx = width / 2f
-                    val cy = height / 2f
-                    val ratio = nextZoom / oldZoom
-                    panX = detector.focusX - cx - (detector.focusX - cx - panX) * ratio
-                    panY = detector.focusY - cy - (detector.focusY - cy - panY) * ratio
-                    zoom = nextZoom
-                    invalidate()
-                }
-                return true
-            }
-        })
 
     fun setScene(value: SceneDocument, selectedId: String? = selectedLayerId) {
         document = value
@@ -124,11 +97,6 @@ class SceneEditorCanvasView(context: Context) : View(context) {
     fun selectLayer(id: String?) {
         selectedLayerId = id?.takeIf { key -> document.layers.any { it.id == key } }
         onSelectionChanged?.invoke(selectedLayer())
-        invalidate()
-    }
-
-    fun setZoom(value: Float) {
-        zoom = value.coerceIn(0.5f, 4f)
         invalidate()
     }
 
@@ -284,14 +252,14 @@ class SceneEditorCanvasView(context: Context) : View(context) {
             (width - 32f * density).coerceAtLeast(1f) / document.canvas.width,
             (height - 32f * density).coerceAtLeast(1f) / document.canvas.height
         )
-        return fit * zoom
+        return fit
     }
 
     private fun canvasLeft(scale: Float): Float =
-        width / 2f - document.canvas.width * scale / 2f + panX
+        width / 2f - document.canvas.width * scale / 2f
 
     private fun canvasTop(scale: Float): Float =
-        height / 2f - document.canvas.height * scale / 2f + panY
+        height / 2f - document.canvas.height * scale / 2f
 
     private fun viewToSceneX(x: Float, scale: Float): Float =
         ((x - canvasLeft(scale)) / scale) / document.canvas.width
@@ -313,7 +281,6 @@ class SceneEditorCanvasView(context: Context) : View(context) {
         }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        scaleDetector.onTouchEvent(event)
         val scale = sceneScale()
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -342,7 +309,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                             if (hit.locked) Gesture.NONE else Gesture.DRAG
                         } else {
                             selectLayer(null)
-                            Gesture.PAN
+                            Gesture.NONE
                         }
                     }
                 }
@@ -351,21 +318,12 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                 startRotation = selectedLayer()?.transform?.rotationDegrees ?: 0f
                 return true
             }
-            MotionEvent.ACTION_POINTER_DOWN -> {
-                gesture = Gesture.PINCH
-                return true
-            }
             MotionEvent.ACTION_MOVE -> {
-                if (event.pointerCount > 1 || gesture == Gesture.PINCH) return true
+                if (event.pointerCount > 1) return true
                 val dx = event.x - lastX
                 val dy = event.y - lastY
                 if (distance(event.x, event.y, downX, downY) > 2f * density) moved = true
                 when (gesture) {
-                    Gesture.PAN -> {
-                        panX += dx
-                        panY += dy
-                        invalidate()
-                    }
                     Gesture.DRAG -> updateDraggedLayer(dx, dy, scale)
                     Gesture.RESIZE -> updateResizedLayer(dx, dy, scale)
                     Gesture.ROTATE -> updateRotatedLayer(event.x, event.y, scale)
@@ -375,14 +333,7 @@ class SceneEditorCanvasView(context: Context) : View(context) {
                 lastY = event.y
                 return true
             }
-            MotionEvent.ACTION_POINTER_UP -> {
-                gesture = Gesture.NONE
-                return true
-            }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (!moved && gesture == Gesture.PAN && event.actionMasked == MotionEvent.ACTION_UP) {
-                    // Empty-canvas taps simply clear selection; no implicit zoom or source creation.
-                }
                 gesture = Gesture.NONE
                 startTransform = null
                 performClick()
