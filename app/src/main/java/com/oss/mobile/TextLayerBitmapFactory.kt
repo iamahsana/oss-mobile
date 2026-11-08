@@ -18,7 +18,9 @@ object TextLayerBitmapFactory {
             color = config.color
             textSize = config.textSize
         }
-        val longestLine = config.text.split("\n").maxOfOrNull { paint.measureText(it).toInt() } ?: 64\n        val contentWidth = longestLine.coerceIn(64, MAX_WIDTH - PADDING * 2)
+        val longestLine = config.text.split("\\n")
+            .maxOfOrNull { paint.measureText(it).toInt() } ?: 64
+        val contentWidth = longestLine.coerceIn(64, MAX_WIDTH - PADDING * 2)
         val alignment = when (config.alignment) {
             TextLayerConfig.Alignment.LEFT -> Layout.Alignment.ALIGN_NORMAL
             TextLayerConfig.Alignment.CENTER -> Layout.Alignment.ALIGN_CENTER
@@ -30,7 +32,7 @@ object TextLayerBitmapFactory {
             .setIncludePad(true)
             .setLineSpacing(0f, 1.08f)
             .build()
-        val width = (0 until layout.lineCount).maxOfOrNull { layout.getLineWidth(it).toInt() }\n            ?.plus(PADDING * 2)?.coerceIn(1, MAX_WIDTH) ?: (PADDING * 2)
+        val width = contentWidth + PADDING * 2
         val height = (layout.height + PADDING * 2).coerceIn(1, MAX_HEIGHT)
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         Canvas(bitmap).apply {
